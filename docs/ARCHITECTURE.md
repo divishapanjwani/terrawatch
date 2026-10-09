@@ -15,9 +15,9 @@ flowchart LR
     ALIGN --> QUALITY[Quality check\napp/geo/quality.py\ncloud %, misalignment, resolution, bands]
     ALIGN --> SELECT[Engine selection\napp/engines/select.py\nresolution + band count → engine]
 
-    SELECT -->|≤2 m/px, <5 bands| ENGINE1[Engine 1: TinyCD\nSiamese CNN, LEVIR-CD-trained]
-    SELECT -->|coarser / multispectral| ENGINE2[Engine 2: U-Net\nOSCD-trained, 14 input channels]
-    ENGINE2 -.fallback if no weights.-> SPECTRAL[Spectral baseline\nΔband-magnitude threshold]
+    SELECT -->|resolution up to 2 m/px, fewer than 5 bands| ENGINE1[Engine 1: TinyCD\nSiamese CNN, LEVIR-CD-trained]
+    SELECT -->|coarser or multispectral| ENGINE2[Engine 2: U-Net\nOSCD-trained, 14 input channels]
+    ENGINE2 -. fallback if no weights .-> SPECTRAL[Spectral baseline\nΔband-magnitude threshold]
 
     ENGINE1 --> PROBMAP[Change probability map]
     ENGINE2 --> PROBMAP
