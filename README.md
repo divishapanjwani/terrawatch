@@ -152,14 +152,14 @@ tier boundaries, equal area/magnitude weighting).
 ### Acceptance test against a planted-change answer key
 
 A synthetic UTM-projected test pair with known changes and a scoring
-script is the fastest way to sanity-check the whole geo pipeline (areas,
-centroids, severity, export). It's not included in this repo (ask for
-`terrawatch-test-pair/`) — point `check_results.py` at an exported GeoJSON:
+script (`terrawatch-test-pair/` in the repo root) is the fastest way to
+sanity-check the whole geo pipeline (areas, centroids, severity, export).
+Point `check_results.py` at an exported GeoJSON:
 
 ```bash
 # upload terrawatch-test-pair/before.tif + after.tif via the UI, then:
 curl "http://127.0.0.1:8000/api/analyses/<id>/export?format=geojson" -o export.geojson
-python path/to/terrawatch-test-pair/check_results.py export.geojson
+python terrawatch-test-pair/check_results.py export.geojson
 ```
 
 **Honest result on this synthetic pair:** TinyCD (Engine 1) finds **nothing**

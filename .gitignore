@@ -4,28 +4,38 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Backend runtime data (uploads, generated previews, sqlite db)
+# Backend runtime data: uploads, generated previews/analysis outputs, sqlite db
 backend/data/uploads/
 backend/data/analyses/
 backend/data/*.db
 backend/data/population/*
 !backend/data/population/.gitkeep
 
-# Model weights (downloaded separately, see README)
+# Model weights (downloaded separately, see README / HANDOFF.md)
 backend/models/*
 !backend/models/.gitkeep
 
-# Evaluation datasets (downloaded separately, see README) and fetched test imagery
+# Downloaded datasets (LEVIR-CD, OSCD, Sentinel-2 fetches, any other
+# scripts/fetch_* output) — all documented as scripted re-downloads
 backend/data/levir_cd/
+backend/data/oscd/
 backend/data/real_test_pair/
+backend/data/sentinel2/
 
 # Node
 frontend/node_modules/
 frontend/dist/
 
-# Env files
+# Playwright artifacts
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+frontend/blob-report/
+
+# Env files (keep .env.example)
 .env
 backend/.env
+frontend/.env
 
 # Editor / OS
 .DS_Store

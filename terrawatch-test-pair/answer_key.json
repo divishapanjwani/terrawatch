@@ -1,0 +1,66 @@
+[
+ {
+  "id": "R1",
+  "kind": "real",
+  "label": "new_building",
+  "area_m2": 600.0,
+  "centroid_lat": 18.52469,
+  "centroid_lon": 73.797505
+ },
+ {
+  "id": "R2",
+  "kind": "real",
+  "label": "destroyed_building",
+  "area_m2": 625.0,
+  "centroid_lat": 18.527126,
+  "centroid_lon": 73.800401
+ },
+ {
+  "id": "R3",
+  "kind": "real",
+  "label": "flooding",
+  "area_m2": 3909.0,
+  "centroid_lat": 18.523963,
+  "centroid_lon": 73.798512
+ },
+ {
+  "id": "R4",
+  "kind": "real",
+  "label": "landslide_bare_soil",
+  "area_m2": 2635.0,
+  "centroid_lat": 18.524301,
+  "centroid_lon": 73.801017
+ },
+ {
+  "id": "R5",
+  "kind": "real",
+  "label": "small_shed_16m2",
+  "area_m2": 16.0,
+  "centroid_lat": 18.52596,
+  "centroid_lon": 73.801067
+ },
+ {
+  "id": "F1",
+  "kind": "fake",
+  "label": "seasonal_vegetation",
+  "area_m2": 9600.0,
+  "centroid_lat": 18.526144,
+  "centroid_lon": 73.798773
+ },
+ {
+  "id": "F2",
+  "kind": "fake",
+  "label": "shadow_shift",
+  "area_m2": 1710.0,
+  "centroid_lat": 18.526815,
+  "centroid_lon": 73.798306
+ },
+ {
+  "id": "F3",
+  "kind": "fake",
+  "label": "cloud",
+  "area_m2": 1281.0,
+  "centroid_lat": 18.523617,
+  "centroid_lon": 73.799933
+ }
+]
