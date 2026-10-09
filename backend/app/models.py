@@ -19,6 +19,7 @@ class Analysis(SQLModel, table=True):
     after_path: Optional[str] = Field(default=None)
     before_png: Optional[str] = Field(default=None)
     after_png: Optional[str] = Field(default=None)
+    population_png: Optional[str] = Field(default=None)
 
     # bounding coordinates in EPSG:4326, as "west,south,east,north"
     # (before/after previews now share identical bounds — see app/geo/align.py)

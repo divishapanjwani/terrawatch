@@ -36,9 +36,13 @@ function nearestFacilityLabel(p: Record<string, unknown>): string {
 export default function PriorityPanel({
   geojson,
   onSelect,
+  hoveredId,
+  onHoverRow,
 }: {
   geojson: FeatureCollection;
   onSelect: (id: string) => void;
+  hoveredId?: string | null;
+  onHoverRow?: (id: string | null) => void;
 }) {
   const [filter, setFilter] = useState<SeverityFilter>("All");
   const [showAll, setShowAll] = useState(false);
@@ -105,10 +109,14 @@ export default function PriorityPanel({
         const p = f.properties as Record<string, unknown>;
         const id = String(p.id);
         const severity = String(p.severity ?? "");
+        const popBuffer = p.population_buffer_est as number | null;
+        const isHovered = hoveredId === id;
         return (
           <button
             key={id}
             onClick={() => onSelect(id)}
+            onMouseEnter={() => onHoverRow?.(id)}
+            onMouseLeave={() => onHoverRow?.(null)}
             style={{
               display: "block",
               width: "100%",
@@ -116,8 +124,8 @@ export default function PriorityPanel({
               padding: "8px 10px",
               marginBottom: "6px",
               borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-border)",
-              background: "white",
+              border: `1px solid ${isHovered ? "var(--color-accent)" : "var(--color-border)"}`,
+              background: isHovered ? "rgba(47,93,70,0.06)" : "white",
               cursor: "pointer",
             }}
           >
@@ -150,6 +158,11 @@ export default function PriorityPanel({
               <span className="mono">{Number(p.area_m2 ?? 0).toLocaleString()} m²</span>
               <span className="mono">{nearestFacilityLabel(p)}</span>
             </div>
+            {popBuffer != null && popBuffer >= 1 && (
+              <div style={{ marginTop: "2px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
+                ~{Math.round(popBuffer).toLocaleString()} people estimated nearby
+              </div>
+            )}
             <div
               style={{
                 marginTop: "4px",

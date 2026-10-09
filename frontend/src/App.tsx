@@ -58,6 +58,7 @@ export default function App() {
   const [showRejected, setShowRejected] = useState(false);
   const [zoomToId, setZoomToId] = useState<string | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   function handleSelectFromPriority(id: string) {
     if (state.phase !== "ready") return;
@@ -404,10 +405,12 @@ export default function App() {
               geojson={ready.geojson}
               selectedId={selected ? String(selected.properties?.id) : null}
               zoomToId={zoomToId}
+              hoveredId={hoveredId}
               onPolygonClick={(f) => {
                 setSelected(f);
                 setRightPanelOpen(true);
               }}
+              onPolygonHover={setHoveredId}
               showRejected={showRejected}
             />
           ) : (
@@ -459,7 +462,12 @@ export default function App() {
                     }}
                   />
                 ) : (
-                  <PriorityPanel geojson={ready.geojson} onSelect={handleSelectFromPriority} />
+                  <PriorityPanel
+                    geojson={ready.geojson}
+                    onSelect={handleSelectFromPriority}
+                    hoveredId={hoveredId}
+                    onHoverRow={setHoveredId}
+                  />
                 )}
               </div>
             )}

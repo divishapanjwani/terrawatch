@@ -63,6 +63,12 @@ export default function PolygonPanel({
   const gmapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
   const rejectReason = String(p.reject_reason ?? "");
   const changeType = String(p.change_type ?? "");
+  let nearbyFacilities: { type: string; name: string; distance_m: number }[] = [];
+  try {
+    nearbyFacilities = p.nearby_facilities_json ? JSON.parse(String(p.nearby_facilities_json)) : [];
+  } catch {
+    nearbyFacilities = [];
+  }
 
   return (
     <div
@@ -126,6 +132,23 @@ export default function PolygonPanel({
         </div>
       )}
 
+      {!isRejected && Boolean(p.in_hazard_zone) && (
+        <div
+          style={{
+            margin: "0 0 12px",
+            padding: "8px 10px",
+            background: "rgba(192,57,43,0.08)",
+            border: "1px solid var(--color-danger)",
+            borderRadius: "var(--radius-sm)",
+            fontSize: "var(--font-size-xs)",
+            color: "var(--color-danger)",
+            fontWeight: 600,
+          }}
+        >
+          New structure detected in hazard zone — verify
+        </div>
+      )}
+
       {needsReview && !isRejected && (
         <div
           style={{
@@ -180,6 +203,39 @@ export default function PolygonPanel({
               : "none found"
           }
         />
+      )}
+      {!isRejected && (
+        <Row
+          label="Nearest main road"
+          value={p.nearest_main_road_m != null ? `${Number(p.nearest_main_road_m).toLocaleString()} m` : "none found"}
+        />
+      )}
+      {!isRejected && (
+        <Row
+          label="Population (inside)"
+          value={p.population_est != null ? `~${Math.round(Number(p.population_est)).toLocaleString()} (estimate)` : "no data"}
+        />
+      )}
+      {!isRejected && (
+        <Row
+          label="Population (+buffer)"
+          value={
+            p.population_buffer_est != null
+              ? `~${Math.round(Number(p.population_buffer_est)).toLocaleString()} (estimate)`
+              : "no data"
+          }
+        />
+      )}
+
+      {!isRejected && nearbyFacilities.length > 0 && (
+        <div style={{ marginTop: "12px" }}>
+          <h3 style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: "0 0 6px" }}>
+            Nearby facilities
+          </h3>
+          {nearbyFacilities.map((f, i) => (
+            <Row key={i} label={`${f.type[0].toUpperCase()}${f.type.slice(1)}`} value={`${f.name} — ${f.distance_m.toFixed(0)} m`} />
+          ))}
+        </div>
       )}
 
       <a

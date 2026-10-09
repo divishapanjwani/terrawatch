@@ -72,7 +72,9 @@ interface Props {
   geojson?: FeatureCollection | null;
   selectedId?: string | null;
   zoomToId?: string | null;
+  hoveredId?: string | null;
   onPolygonClick?: (feature: MapGeoJSONFeature) => void;
+  onPolygonHover?: (id: string | null) => void;
   showRejected?: boolean;
   beforeLabel?: string;
   afterLabel?: string;
@@ -155,6 +157,17 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
   });
 
   map.addLayer({
+    id: "changes-hover",
+    type: "line",
+    source: "changes",
+    filter: ["==", ["get", "id"], "__none__"],
+    paint: {
+      "line-color": "#2F5D46",
+      "line-width": 2.5,
+    },
+  });
+
+  map.addLayer({
     id: "changes-selected",
     type: "line",
     source: "changes",
@@ -180,7 +193,9 @@ export default function CompareMap({
   geojson,
   selectedId,
   zoomToId,
+  hoveredId,
   onPolygonClick,
+  onPolygonHover,
   showRejected = false,
   beforeLabel = "Before",
   afterLabel = "After",
@@ -195,9 +210,11 @@ export default function CompareMap({
   const mapsRef = useRef<{ before: MLMap; after: MLMap } | null>(null);
   const geojsonRef = useRef(geojson);
   const onClickRef = useRef(onPolygonClick);
+  const onHoverRef = useRef(onPolygonHover);
   const showRejectedRef = useRef(showRejected);
   geojsonRef.current = geojson;
   onClickRef.current = onPolygonClick;
+  onHoverRef.current = onPolygonHover;
   showRejectedRef.current = showRejected;
 
   useEffect(() => {
@@ -263,8 +280,12 @@ export default function CompareMap({
         map.on("mouseenter", layerId, () => {
           map.getCanvas().style.cursor = "pointer";
         });
+        map.on("mousemove", layerId, (e) => {
+          if (e.features && e.features[0]) onHoverRef.current?.(String(e.features[0].properties?.id));
+        });
         map.on("mouseleave", layerId, () => {
           map.getCanvas().style.cursor = "";
+          onHoverRef.current?.(null);
         });
       }
     };
@@ -322,6 +343,15 @@ export default function CompareMap({
       }
     }
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (map.getLayer("changes-hover")) {
+        map.setFilter("changes-hover", ["==", ["get", "id"], hoveredId ?? "__none__"]);
+      }
+    }
+  }, [hoveredId]);
 
   useEffect(() => {
     if (!mapsRef.current || !geojson || !zoomToId) return;

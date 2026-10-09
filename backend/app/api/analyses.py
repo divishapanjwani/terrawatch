@@ -79,6 +79,7 @@ def _process_analysis(
             analysis.reject_reason_counts = json.dumps(result["reject_reason_counts"])
             analysis.summary_line = result["summary_line"]
             analysis.population_available = result["population_available"]
+            analysis.population_png = result["population_png_path"]
             analysis.total_population_buffer_est = result["total_population_buffer_est"]
             analysis.near_facility_count = result["near_facility_count"]
             analysis.quality_report = json.dumps(result["quality_report"])
@@ -210,15 +211,17 @@ async def get_facilities(analysis_id: str):
 
 @router.get("/{analysis_id}/imagery/{which}")
 async def get_imagery(analysis_id: str, which: str):
-    if which not in ("before", "after"):
-        raise HTTPException(status_code=400, detail="which must be 'before' or 'after'")
+    if which not in ("before", "after", "population"):
+        raise HTTPException(status_code=400, detail="which must be 'before', 'after' or 'population'")
     with get_session() as session:
         analysis = session.get(Analysis, analysis_id)
         if analysis is None:
             raise HTTPException(status_code=404, detail="Analysis not found")
-        png_path = analysis.before_png if which == "before" else analysis.after_png
+        png_path = {"before": analysis.before_png, "after": analysis.after_png, "population": analysis.population_png}[which]
         if not png_path:
-            raise HTTPException(status_code=409, detail="Imagery not ready yet")
+            status = 409 if which != "population" else 404
+            detail = "Imagery not ready yet" if which != "population" else "No population data available for this scene"
+            raise HTTPException(status_code=status, detail=detail)
         return FileResponse(png_path, media_type="image/png")
 
 
