@@ -1,11 +1,14 @@
+import json
 from collections import Counter
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 from rasterio.enums import Resampling
+from shapely.geometry import shape as shapely_shape
 
-from app import config
+from app import config, settings
+from app.db import OSM_CACHE_DIR
 from app.engines import select, spectral
 from app.engines.common import compute_magnitude_map
 from app.geo import features
@@ -14,9 +17,12 @@ from app.geo.export import save_geojson, save_gpkg
 from app.geo.morphology import clean_mask
 from app.geo.preview import generate_preview_pair
 from app.geo.quality import run_quality_check
-from app.geo.vectorize import vectorize
+from app.geo.vectorize import compute_bounds_4326, vectorize
+from app.impact.facilities import fetch_facilities
+from app.impact.population import compute_population, generate_population_overlay_png
 from app.pipeline.change_type import apply_change_types
 from app.pipeline.false_alarm import apply_false_alarm_filter
+from app.pipeline.priority import apply_hazard_zone, compute_priority
 from app.pipeline.severity import score_severity
 
 EPS = 1e-6
@@ -65,6 +71,8 @@ def run_pipeline(
     after_png: Path,
     progress_cb: Callable[[str], None],
     engine_choice: str = "auto",
+    mode: str = "disaster",
+    hazard_zone_geojson: Optional[str] = None,
 ) -> dict:
     progress_cb("validating")
     aligned = load_aligned_pair(before_path, after_path)
@@ -107,6 +115,31 @@ def run_pipeline(
     rejected = [p for p in polygons if p.status == "rejected"]
     score_severity(kept)  # severity normalization only among real (kept) changes
 
+    progress_cb("impact_analysis")
+    bounds_4326 = compute_bounds_4326(aligned)
+    population_png_path = out_dir / "population.png"
+    population_png_written = generate_population_overlay_png(bounds_4326, population_png_path)
+
+    population_available = False
+    total_population_buffer_est = None
+    near_facility_count = None
+    if kept:
+        facilities = fetch_facilities(bounds_4326, OSM_CACHE_DIR)
+        population_available = compute_population(kept, bounds_4326)
+        if hazard_zone_geojson:
+            hazard_geom = shapely_shape(json.loads(hazard_zone_geojson))
+            apply_hazard_zone(kept, hazard_geom)
+        compute_priority(kept, facilities, weights=settings.get_priority_weights(), mode=mode)
+
+        total_population_buffer_est = round(
+            sum(p.population_buffer_est or 0.0 for p in kept), 1
+        ) if population_available else None
+        near_facility_count = sum(
+            1 for p in kept
+            if (p.nearest_hospital_m is not None and p.nearest_hospital_m <= config.PRIORITY_PROXIMITY_MAX_M)
+            or (p.nearest_school_m is not None and p.nearest_school_m <= config.PRIORITY_PROXIMITY_MAX_M)
+        )
+
     geojson_path = out_dir / "polygons.geojson"
     gpkg_path = out_dir / "polygons.gpkg"
     save_geojson(polygons, analysis_id, str(geojson_path))
@@ -133,6 +166,10 @@ def run_pipeline(
         "rejected_count": len(rejected),
         "reject_reason_counts": reject_counts,
         "summary_line": summary_line,
+        "population_available": population_available,
+        "population_png_path": str(population_png_path) if population_png_written else None,
+        "total_population_buffer_est": total_population_buffer_est,
+        "near_facility_count": near_facility_count,
         "quality_report": quality_report.to_dict(),
         "geojson_path": str(geojson_path),
         "gpkg_path": str(gpkg_path),

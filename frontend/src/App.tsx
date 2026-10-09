@@ -6,15 +6,20 @@ import "./App.css";
 import CompareMap from "./map/CompareMap";
 import FileDropSlot from "./panels/FileDropSlot";
 import PolygonPanel from "./panels/PolygonPanel";
+import PriorityPanel from "./panels/PriorityPanel";
 import AccuracyPage from "./pages/AccuracyPage";
+import SettingsPage from "./pages/SettingsPage";
 import {
+  applyHazardZone,
   createAnalysis,
   exportUrl,
+  getFacilities,
   getPolygons,
   imageryUrl,
   pollUntilReady,
+  populationOverlayUrl,
 } from "./api/client";
-import type { AnalysisStatus, EngineChoice } from "./api/client";
+import type { AnalysisStatus, EngineChoice, FacilitiesData } from "./api/client";
 
 type AppState =
   | { phase: "empty" }
@@ -29,6 +34,7 @@ const STEP_LABELS: Record<string, string> = {
   detecting: "Detecting",
   filtering: "Filtering",
   vectorizing: "Vectorizing",
+  impact_analysis: "Impact analysis",
   done: "Done",
 };
 
@@ -46,7 +52,7 @@ const ENGINE_NAME_LABEL: Record<string, string> = {
 };
 
 export default function App() {
-  const [page, setPage] = useState<"analysis" | "accuracy">("analysis");
+  const [page, setPage] = useState<"analysis" | "accuracy" | "settings">("analysis");
   const [state, setState] = useState<AppState>({ phase: "empty" });
   const [beforeFile, setBeforeFile] = useState<File | null>(null);
   const [afterFile, setAfterFile] = useState<File | null>(null);
@@ -54,10 +60,56 @@ export default function App() {
   const [engine, setEngine] = useState<EngineChoice>("auto");
   const [selected, setSelected] = useState<MapGeoJSONFeature | null>(null);
   const [showRejected, setShowRejected] = useState(false);
+  const [zoomToId, setZoomToId] = useState<string | null>(null);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [showPopulation, setShowPopulation] = useState(false);
+  const [showFacilities, setShowFacilities] = useState(false);
+  const [showRoads, setShowRoads] = useState(false);
+  const [facilities, setFacilities] = useState<FacilitiesData | null>(null);
+  const [drawMode, setDrawMode] = useState(false);
+  const [hazardZone, setHazardZone] = useState<GeoJSON.Polygon | null>(null);
+  const [hazardZoneStatus, setHazardZoneStatus] = useState<string | null>(null);
+
+  async function handleDrawComplete(polygon: GeoJSON.Polygon | null) {
+    setDrawMode(false);
+    if (!polygon || state.phase !== "ready") return;
+    setHazardZone(polygon);
+    setHazardZoneStatus("Applying hazard zone…");
+    try {
+      const { in_hazard_zone_count } = await applyHazardZone(state.analysis.id, polygon);
+      const geojson = await getPolygons(state.analysis.id);
+      setState({ phase: "ready", analysis: state.analysis, geojson });
+      setSelected((prev) => {
+        if (!prev) return prev;
+        const updated = geojson.features.find((f) => String(f.properties?.id) === String(prev.properties?.id));
+        return (updated as unknown as MapGeoJSONFeature) ?? prev;
+      });
+      setHazardZoneStatus(
+        in_hazard_zone_count > 0
+          ? `${in_hazard_zone_count} new-construction polygon(s) flagged in the hazard zone.`
+          : "No new-construction polygons fall inside this zone."
+      );
+    } catch (err) {
+      setHazardZoneStatus(`Failed to apply hazard zone: ${(err as Error).message}`);
+    }
+  }
+
+  function handleSelectFromPriority(id: string) {
+    if (state.phase !== "ready") return;
+    const feature = state.geojson.features.find((f) => String(f.properties?.id) === id);
+    if (!feature) return;
+    setSelected(feature as unknown as MapGeoJSONFeature);
+    setZoomToId(id);
+  }
 
   async function handleSubmit() {
     if (!beforeFile || !afterFile) return;
     setSelected(null);
+    setFacilities(null);
+    setHazardZone(null);
+    setHazardZoneStatus(null);
+    setDrawMode(false);
     setState({ phase: "uploading" });
     try {
       const { analysis_id } = await createAnalysis(beforeFile, afterFile, mode, engine);
@@ -75,6 +127,7 @@ export default function App() {
       } else {
         const geojson = await getPolygons(analysis_id);
         setState({ phase: "ready", analysis, geojson });
+        getFacilities(analysis_id).then(setFacilities).catch(() => setFacilities(null));
       }
     } catch (err) {
       setState({ phase: "error", message: (err as Error).message });
@@ -138,10 +191,28 @@ export default function App() {
         >
           Acc.
         </button>
+        <button
+          onClick={() => setPage("settings")}
+          title="Settings"
+          style={{
+            width: "32px",
+            height: "32px",
+            border: "none",
+            borderRadius: "var(--radius-sm)",
+            background: page === "settings" ? "var(--color-accent)" : "transparent",
+            color: page === "settings" ? "white" : "var(--color-text-secondary)",
+            cursor: "pointer",
+            fontSize: "var(--font-size-xs)",
+          }}
+        >
+          Set.
+        </button>
       </nav>
 
       {page === "accuracy" ? (
         <AccuracyPage />
+      ) : page === "settings" ? (
+        <SettingsPage />
       ) : (
         <>
       <aside
@@ -332,6 +403,44 @@ export default function App() {
               Show rejected changes ({ready.analysis.rejected_count})
             </label>
 
+            <h2 style={{ fontSize: "var(--font-size-sm)", margin: "12px 0 6px", color: "var(--color-text-secondary)" }}>
+              Map layers
+            </h2>
+            <LayerToggle
+              label="Population"
+              checked={showPopulation}
+              onChange={setShowPopulation}
+              disabled={!ready.analysis.population_available}
+              note={!ready.analysis.population_available ? "no data for this scene" : undefined}
+            />
+            <LayerToggle label="Facilities" checked={showFacilities} onChange={setShowFacilities} />
+            <LayerToggle label="Roads" checked={showRoads} onChange={setShowRoads} />
+
+            {mode === "prevention" && (
+              <div style={{ marginTop: "12px" }}>
+                <button
+                  onClick={() => setDrawMode((d) => !d)}
+                  style={{
+                    width: "100%",
+                    padding: "6px 8px",
+                    fontSize: "var(--font-size-xs)",
+                    borderRadius: "var(--radius-sm)",
+                    border: `1px solid ${drawMode ? "var(--color-accent)" : "var(--color-border)"}`,
+                    background: drawMode ? "var(--color-accent)" : "white",
+                    color: drawMode ? "white" : "var(--color-text)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {drawMode ? "Cancel drawing" : hazardZone ? "Redraw hazard zone" : "Draw hazard zone"}
+                </button>
+                {hazardZoneStatus && (
+                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "6px" }}>
+                    {hazardZoneStatus}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
               <a
                 href={exportUrl(ready.analysis.id, "geojson")}
@@ -382,37 +491,173 @@ export default function App() {
         )}
       </aside>
 
-      <main style={{ flex: 1, position: "relative", background: "var(--color-bg)" }}>
-        {ready && ready.analysis.bounds ? (
-          <CompareMap
-            beforeUrl={imageryUrl(ready.analysis.id, "before")}
-            afterUrl={imageryUrl(ready.analysis.id, "after")}
-            bounds={ready.analysis.bounds}
-            geojson={ready.geojson}
-            selectedId={selected ? String(selected.properties?.id) : null}
-            onPolygonClick={setSelected}
-            showRejected={showRejected}
-          />
-        ) : (
-          <div
-            style={{
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "column",
-              color: "var(--color-text-secondary)",
-              fontSize: "var(--font-size-sm)",
-            }}
-          >
-            <p>Upload a before/after GeoTIFF pair to begin.</p>
+      <main style={{ flex: 1, position: "relative", background: "var(--color-bg)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        <div style={{ flex: 1, position: "relative", minWidth: 0, height: "100%" }}>
+          {ready && ready.analysis.bounds ? (
+            <CompareMap
+              beforeUrl={imageryUrl(ready.analysis.id, "before")}
+              afterUrl={imageryUrl(ready.analysis.id, "after")}
+              bounds={ready.analysis.bounds}
+              geojson={ready.geojson}
+              selectedId={selected ? String(selected.properties?.id) : null}
+              zoomToId={zoomToId}
+              hoveredId={hoveredId}
+              onPolygonClick={(f) => {
+                setSelected(f);
+                setRightPanelOpen(true);
+              }}
+              onPolygonHover={setHoveredId}
+              showRejected={showRejected}
+              facilities={facilities}
+              showFacilities={showFacilities}
+              showRoads={showRoads}
+              populationUrl={ready.analysis.population_available ? populationOverlayUrl(ready.analysis.id) : null}
+              showPopulation={showPopulation}
+              drawMode={drawMode}
+              onDrawComplete={handleDrawComplete}
+              hazardZone={hazardZone}
+            />
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "column",
+                color: "var(--color-text-secondary)",
+                fontSize: "var(--font-size-sm)",
+              }}
+            >
+              <p>Upload a before/after GeoTIFF pair to begin.</p>
+            </div>
+          )}
+        </div>
+
+        {ready && (
+          <div style={{ display: "flex", height: "100%", flexShrink: 0 }}>
+            <button
+              onClick={() => setRightPanelOpen((o) => !o)}
+              style={{
+                width: "32px",
+                border: "none",
+                borderLeft: "1px solid var(--color-border)",
+                background: "var(--color-panel)",
+                color: "var(--color-text-secondary)",
+                cursor: "pointer",
+                fontSize: "var(--font-size-xs)",
+                writingMode: "vertical-rl",
+                textOrientation: "mixed",
+                padding: "12px 0",
+                whiteSpace: "nowrap",
+              }}
+              title={rightPanelOpen ? "Collapse panel" : "Expand priority queue"}
+            >
+              {rightPanelOpen ? "Close ✕" : `Priority (${ready.analysis.kept_count})`}
+            </button>
+            {rightPanelOpen && (
+              <div style={{ width: "360px", height: "100%", flexShrink: 0 }}>
+                {selected ? (
+                  <PolygonPanel
+                    feature={selected}
+                    onClose={() => {
+                      setSelected(null);
+                      setZoomToId(null);
+                    }}
+                  />
+                ) : (
+                  <PriorityPanel
+                    geojson={ready.geojson}
+                    onSelect={handleSelectFromPriority}
+                    hoveredId={hoveredId}
+                    onHoverRow={setHoveredId}
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
-        {ready && <PolygonPanel feature={selected} onClose={() => setSelected(null)} />}
+      </div>
+
+      {ready && <SummaryStrip analysis={ready.analysis} />}
       </main>
         </>
       )}
     </div>
+  );
+}
+
+function SummaryStrip({ analysis }: { analysis: AnalysisStatus }) {
+  const areaChangedCount = analysis.kept_count;
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        display: "flex",
+        gap: "24px",
+        padding: "8px 16px",
+        borderTop: "1px solid var(--color-border)",
+        background: "var(--color-panel)",
+        fontSize: "var(--font-size-xs)",
+      }}
+    >
+      <SummaryStat label="Kept changes" value={String(areaChangedCount)} />
+      <SummaryStat label="Rejected" value={String(analysis.rejected_count)} />
+      <SummaryStat
+        label="People in affected areas"
+        value={
+          analysis.population_available && analysis.total_population_buffer_est != null
+            ? `~${Math.round(analysis.total_population_buffer_est).toLocaleString()} (estimate)`
+            : "no data"
+        }
+      />
+      <SummaryStat
+        label="Priority areas near a facility"
+        value={analysis.near_facility_count != null ? String(analysis.near_facility_count) : "—"}
+      />
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+      <span className="mono" style={{ fontWeight: 600 }}>{value}</span>
+      <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
+    </div>
+  );
+}
+
+function LayerToggle({
+  label,
+  checked,
+  onChange,
+  disabled,
+  note,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  note?: string;
+}) {
+  return (
+    <label
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "2px 0",
+        fontSize: "var(--font-size-xs)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      {label}
+      {note && <span style={{ color: "var(--color-text-secondary)" }}>({note})</span>}
+    </label>
   );
 }
 

@@ -4,15 +4,19 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
+
 from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from sqlmodel import select
 
 from app.config import PROGRESS_STEPS
-from app.db import get_session, UPLOADS_DIR, ANALYSES_DIR
+from app.db import get_session, UPLOADS_DIR, ANALYSES_DIR, OSM_CACHE_DIR
 from app.models import Analysis
 from app.geo.preview import read_metadata
+from app.impact.facilities import fetch_facilities, OSMFetchError
 from app.pipeline.run import run_pipeline
+from app.pipeline.priority import recompute_hazard_zone_gdf
 from app.engines.select import VALID_FORCED_CHOICES
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
@@ -34,7 +38,8 @@ def _set_progress(analysis_id: str, step: str) -> None:
 
 
 def _process_analysis(
-    analysis_id: str, before_path: str, after_path: str, output_dir: Path, engine_choice: str
+    analysis_id: str, before_path: str, after_path: str, output_dir: Path, engine_choice: str,
+    mode: str = "disaster", hazard_zone_geojson: Optional[str] = None,
 ) -> None:
     before_png = output_dir / "before.png"
     after_png = output_dir / "after.png"
@@ -53,6 +58,8 @@ def _process_analysis(
             after_png,
             progress_cb=lambda step: _set_progress(analysis_id, step),
             engine_choice=engine_choice,
+            mode=mode,
+            hazard_zone_geojson=hazard_zone_geojson,
         )
 
         def _fmt(b: dict) -> str:
@@ -74,6 +81,10 @@ def _process_analysis(
             analysis.rejected_count = result["rejected_count"]
             analysis.reject_reason_counts = json.dumps(result["reject_reason_counts"])
             analysis.summary_line = result["summary_line"]
+            analysis.population_available = result["population_available"]
+            analysis.population_png = result["population_png_path"]
+            analysis.total_population_buffer_est = result["total_population_buffer_est"]
+            analysis.near_facility_count = result["near_facility_count"]
             analysis.quality_report = json.dumps(result["quality_report"])
             analysis.geojson_path = result["geojson_path"]
             analysis.gpkg_path = result["gpkg_path"]
@@ -95,11 +106,17 @@ async def create_analysis(
     after: UploadFile = File(...),
     mode: str = Form("disaster"),
     engine: str = Form("auto"),
+    hazard_zone: Optional[str] = Form(None),
 ):
     if engine not in VALID_FORCED_CHOICES:
         raise HTTPException(
             status_code=400, detail=f"engine must be one of {VALID_FORCED_CHOICES}"
         )
+    if hazard_zone:
+        try:
+            json.loads(hazard_zone)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="hazard_zone must be valid GeoJSON")
 
     analysis_id = uuid.uuid4().hex[:12]
     upload_dir = UPLOADS_DIR / analysis_id
@@ -120,6 +137,7 @@ async def create_analysis(
         before_path=str(before_path),
         after_path=str(after_path),
         engine_choice=engine,
+        hazard_zone_geojson=hazard_zone,
     )
 
     with get_session() as session:
@@ -127,7 +145,8 @@ async def create_analysis(
         session.commit()
 
     background_tasks.add_task(
-        _process_analysis, analysis_id, str(before_path), str(after_path), output_dir, engine
+        _process_analysis, analysis_id, str(before_path), str(after_path), output_dir, engine,
+        mode, hazard_zone,
     )
 
     return {"analysis_id": analysis_id}
@@ -164,22 +183,48 @@ async def get_analysis(analysis_id: str):
             "rejected_count": analysis.rejected_count,
             "reject_reason_counts": json.loads(analysis.reject_reason_counts) if analysis.reject_reason_counts else {},
             "summary_line": analysis.summary_line,
+            "population_available": analysis.population_available,
+            "total_population_buffer_est": analysis.total_population_buffer_est,
+            "near_facility_count": analysis.near_facility_count,
+            "hazard_zone_geojson": analysis.hazard_zone_geojson,
             "quality_report": json.loads(analysis.quality_report) if analysis.quality_report else None,
             "created_at": analysis.created_at.isoformat(),
         }
 
 
-@router.get("/{analysis_id}/imagery/{which}")
-async def get_imagery(analysis_id: str, which: str):
-    if which not in ("before", "after"):
-        raise HTTPException(status_code=400, detail="which must be 'before' or 'after'")
+@router.get("/{analysis_id}/facilities")
+async def get_facilities(analysis_id: str):
+    """Hospitals/schools/shelters + main road lines for the map's
+    Facilities/Roads layer toggles -- reads the same disk cache
+    app/pipeline/run.py already populated during analysis, so this is
+    cheap (no new OSM fetch in the common case)."""
     with get_session() as session:
         analysis = session.get(Analysis, analysis_id)
         if analysis is None:
             raise HTTPException(status_code=404, detail="Analysis not found")
-        png_path = analysis.before_png if which == "before" else analysis.after_png
+        bounds_str = analysis.bounds
+    if not bounds_str:
+        return {"hospitals": [], "schools": [], "shelters": [], "roads": []}
+    west, south, east, north = (float(x) for x in bounds_str.split(","))
+    try:
+        return fetch_facilities((west, south, east, north), OSM_CACHE_DIR)
+    except OSMFetchError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/{analysis_id}/imagery/{which}")
+async def get_imagery(analysis_id: str, which: str):
+    if which not in ("before", "after", "population"):
+        raise HTTPException(status_code=400, detail="which must be 'before', 'after' or 'population'")
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        if analysis is None:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        png_path = {"before": analysis.before_png, "after": analysis.after_png, "population": analysis.population_png}[which]
         if not png_path:
-            raise HTTPException(status_code=409, detail="Imagery not ready yet")
+            status = 409 if which != "population" else 404
+            detail = "Imagery not ready yet" if which != "population" else "No population data available for this scene"
+            raise HTTPException(status_code=status, detail=detail)
         return FileResponse(png_path, media_type="image/png")
 
 
@@ -193,6 +238,58 @@ async def get_polygons(analysis_id: str):
     if not geojson_path or not Path(geojson_path).exists():
         return JSONResponse({"type": "FeatureCollection", "features": []})
     return JSONResponse(json.loads(Path(geojson_path).read_text()))
+
+
+@router.post("/{analysis_id}/hazard_zone")
+async def set_hazard_zone(analysis_id: str, body: dict):
+    """Apply a user-drawn/uploaded hazard zone AFTER the analysis is ready
+    (Prevention mode) -- the zone is drawn relative to already-detected
+    new_construction polygons, so this recomputes in_hazard_zone and
+    re-ranks directly from the saved result files, with no re-detection
+    and no re-fetch of facilities/population."""
+    import geopandas as gpd
+    from shapely.geometry import shape as shapely_shape
+
+    geojson_body = body.get("geojson")
+    if not geojson_body:
+        raise HTTPException(status_code=400, detail="Missing 'geojson' field")
+    try:
+        hazard_geom = shapely_shape(geojson_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="'geojson' must be a valid GeoJSON geometry")
+
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        if analysis is None:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        if analysis.status != "ready" or not analysis.gpkg_path:
+            raise HTTPException(status_code=409, detail="Analysis not ready yet")
+        gpkg_path = analysis.gpkg_path
+        geojson_path = analysis.geojson_path
+        mode = analysis.mode
+
+    gdf = gpd.read_file(gpkg_path, layer="changes")
+    if gdf.empty:
+        raise HTTPException(status_code=409, detail="No polygons to apply a hazard zone to")
+
+    kept = gdf[gdf["status"] == "kept"]
+    rejected = gdf[gdf["status"] != "kept"]
+    updated_kept = recompute_hazard_zone_gdf(kept, hazard_geom, mode)
+    merged = gpd.GeoDataFrame(
+        pd.concat([updated_kept, rejected], ignore_index=True), geometry="geometry", crs=gdf.crs
+    )
+
+    merged.to_file(gpkg_path, driver="GPKG", layer="changes")
+    merged.to_crs("EPSG:4326").to_file(geojson_path, driver="GeoJSON")
+
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        analysis.hazard_zone_geojson = json.dumps(geojson_body)
+        session.add(analysis)
+        session.commit()
+
+    in_zone_count = int(updated_kept["in_hazard_zone"].sum())
+    return {"status": "ok", "in_hazard_zone_count": in_zone_count}
 
 
 @router.get("/{analysis_id}/export")

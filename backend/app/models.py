@@ -19,6 +19,7 @@ class Analysis(SQLModel, table=True):
     after_path: Optional[str] = Field(default=None)
     before_png: Optional[str] = Field(default=None)
     after_png: Optional[str] = Field(default=None)
+    population_png: Optional[str] = Field(default=None)
 
     # bounding coordinates in EPSG:4326, as "west,south,east,north"
     # (before/after previews now share identical bounds — see app/geo/align.py)
@@ -37,5 +38,11 @@ class Analysis(SQLModel, table=True):
     quality_report: Optional[str] = Field(default=None)  # JSON, see app/geo/quality.py
     geojson_path: Optional[str] = Field(default=None)
     gpkg_path: Optional[str] = Field(default=None)
+
+    # Phase 5 impact summary (app/pipeline/run.py, app/impact/population.py)
+    population_available: bool = Field(default=False)
+    total_population_buffer_est: Optional[float] = Field(default=None)
+    near_facility_count: Optional[int] = Field(default=None)
+    hazard_zone_geojson: Optional[str] = Field(default=None)  # user-provided zone, Prevention mode
 
     created_at: datetime = Field(default_factory=utcnow)

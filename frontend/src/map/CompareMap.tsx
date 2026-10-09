@@ -7,8 +7,101 @@ import {
   type FilterSpecification,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { FeatureCollection } from "geojson";
-import type { Bounds } from "../api/client";
+import type { Feature, FeatureCollection } from "geojson";
+import type { Bounds, FacilitiesData } from "../api/client";
+
+const FACILITY_COLOR_EXPR = [
+  "match",
+  ["get", "category"],
+  "hospital",
+  "#C0392B",
+  "school",
+  "#2F5D46",
+  "shelter",
+  "#B8860B",
+  "#5B6472",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+] as any;
+
+function facilitiesToGeoJSON(facilities: FacilitiesData): { points: FeatureCollection; lines: FeatureCollection } {
+  const points: Feature[] = [
+    ...facilities.hospitals.map((f) => ({
+      type: "Feature" as const,
+      properties: { category: "hospital", name: f.name },
+      geometry: { type: "Point" as const, coordinates: [f.lon, f.lat] },
+    })),
+    ...facilities.schools.map((f) => ({
+      type: "Feature" as const,
+      properties: { category: "school", name: f.name },
+      geometry: { type: "Point" as const, coordinates: [f.lon, f.lat] },
+    })),
+    ...facilities.shelters.map((f) => ({
+      type: "Feature" as const,
+      properties: { category: "shelter", name: f.name },
+      geometry: { type: "Point" as const, coordinates: [f.lon, f.lat] },
+    })),
+  ];
+  const lines: Feature[] = facilities.roads.map((r) => ({
+    type: "Feature" as const,
+    properties: { name: r.name, highway: r.highway },
+    geometry: { type: "LineString" as const, coordinates: r.coords },
+  }));
+  return { points: { type: "FeatureCollection", features: points }, lines: { type: "FeatureCollection", features: lines } };
+}
+
+function addFacilitiesLayers(map: MLMap, facilities: FacilitiesData) {
+  const { points, lines } = facilitiesToGeoJSON(facilities);
+  if (map.getSource("facility-points")) {
+    (map.getSource("facility-points") as GeoJSONSource).setData(points);
+    (map.getSource("facility-lines") as GeoJSONSource).setData(lines);
+    return;
+  }
+  map.addSource("facility-points", { type: "geojson", data: points });
+  map.addSource("facility-lines", { type: "geojson", data: lines });
+
+  map.addLayer({
+    id: "roads-line",
+    type: "line",
+    source: "facility-lines",
+    layout: { visibility: "none" },
+    paint: { "line-color": "#5B6472", "line-width": 1.5, "line-opacity": 0.85 },
+  });
+
+  map.addLayer({
+    id: "facility-points-circle",
+    type: "circle",
+    source: "facility-points",
+    layout: { visibility: "none" },
+    paint: {
+      "circle-radius": 4,
+      "circle-color": FACILITY_COLOR_EXPR,
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#ffffff",
+    },
+  });
+}
+
+function mapHasImage(map: MLMap): boolean {
+  // Each map's own image source is named differently ("before-img" for the
+  // before map, "after-img" for the after map) -- check both.
+  return Boolean(map.getSource("before-img") || map.getSource("after-img"));
+}
+
+function setLayerVisibility(map: MLMap, layerId: string, visible: boolean) {
+  if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+}
+
+function addPopulationLayer(map: MLMap, url: string, bounds: Bounds) {
+  if (map.getSource("population-img")) return;
+  map.addSource("population-img", { type: "image", url, coordinates: boundsToCoords(bounds) });
+  map.addLayer({
+    id: "population-layer",
+    type: "raster",
+    source: "population-img",
+    layout: { visibility: "none" },
+    paint: { "raster-opacity": 1 },
+  });
+}
 
 const BASE_STYLE: StyleSpecification = {
   version: 8,
@@ -35,6 +128,27 @@ const SEVERITY_COLOR_EXPR: any = [
   "#8A8F98",
 ];
 
+// Flattens a Polygon/MultiPolygon's coordinates into a [west, south, east,
+// north] bbox -- no turf dependency needed for this one lookup.
+function geometryBbox(geometry: GeoJSON.Geometry): [number, number, number, number] | null {
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const visit = (coords: any): void => {
+    if (typeof coords[0] === "number") {
+      const [x, y] = coords;
+      west = Math.min(west, x);
+      east = Math.max(east, x);
+      south = Math.min(south, y);
+      north = Math.max(north, y);
+    } else {
+      coords.forEach(visit);
+    }
+  };
+  if ("coordinates" in geometry) visit(geometry.coordinates);
+  if (!Number.isFinite(west)) return null;
+  return [west, south, east, north];
+}
+
 function boundsToCoords(b: Bounds): [[number, number], [number, number], [number, number], [number, number]] {
   return [
     [b.west, b.north],
@@ -50,10 +164,51 @@ interface Props {
   bounds: Bounds;
   geojson?: FeatureCollection | null;
   selectedId?: string | null;
+  zoomToId?: string | null;
+  hoveredId?: string | null;
   onPolygonClick?: (feature: MapGeoJSONFeature) => void;
+  onPolygonHover?: (id: string | null) => void;
   showRejected?: boolean;
   beforeLabel?: string;
   afterLabel?: string;
+  facilities?: FacilitiesData | null;
+  showFacilities?: boolean;
+  showRoads?: boolean;
+  populationUrl?: string | null;
+  showPopulation?: boolean;
+  drawMode?: boolean;
+  onDrawComplete?: (polygon: GeoJSON.Polygon | null) => void;
+  hazardZone?: GeoJSON.Polygon | null;
+}
+
+function addHazardZoneLayers(map: MLMap) {
+  if (map.getSource("hazard-zone")) return;
+  map.addSource("hazard-zone", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({
+    id: "hazard-zone-fill",
+    type: "fill",
+    source: "hazard-zone",
+    paint: { "fill-color": "#C0392B", "fill-opacity": 0.1 },
+  });
+  map.addLayer({
+    id: "hazard-zone-line",
+    type: "line",
+    source: "hazard-zone",
+    paint: { "line-color": "#C0392B", "line-width": 2, "line-dasharray": [2, 1] },
+  });
+}
+
+function setHazardZoneData(map: MLMap, points: [number, number][], closed: boolean) {
+  const source = map.getSource("hazard-zone") as GeoJSONSource | undefined;
+  if (!source) return;
+  if (points.length < 2) {
+    source.setData({ type: "FeatureCollection", features: [] });
+    return;
+  }
+  const geometry: GeoJSON.Geometry = closed
+    ? { type: "Polygon", coordinates: [[...points, points[0]]] }
+    : { type: "LineString", coordinates: points };
+  source.setData({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry }] });
 }
 
 const KEPT_FILTER = ["==", ["get", "status"], "kept"] as unknown as FilterSpecification;
@@ -133,6 +288,17 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
   });
 
   map.addLayer({
+    id: "changes-hover",
+    type: "line",
+    source: "changes",
+    filter: ["==", ["get", "id"], "__none__"],
+    paint: {
+      "line-color": "#2F5D46",
+      "line-width": 2.5,
+    },
+  });
+
+  map.addLayer({
     id: "changes-selected",
     type: "line",
     source: "changes",
@@ -157,10 +323,21 @@ export default function CompareMap({
   bounds,
   geojson,
   selectedId,
+  zoomToId,
+  hoveredId,
   onPolygonClick,
+  onPolygonHover,
   showRejected = false,
   beforeLabel = "Before",
   afterLabel = "After",
+  facilities,
+  showFacilities = false,
+  showRoads = false,
+  populationUrl,
+  showPopulation = false,
+  drawMode = false,
+  onDrawComplete,
+  hazardZone,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const beforeDivRef = useRef<HTMLDivElement>(null);
@@ -172,10 +349,25 @@ export default function CompareMap({
   const mapsRef = useRef<{ before: MLMap; after: MLMap } | null>(null);
   const geojsonRef = useRef(geojson);
   const onClickRef = useRef(onPolygonClick);
+  const onHoverRef = useRef(onPolygonHover);
   const showRejectedRef = useRef(showRejected);
+  const facilitiesRef = useRef(facilities);
+  const showFacilitiesRef = useRef(showFacilities);
+  const showRoadsRef = useRef(showRoads);
+  const populationUrlRef = useRef(populationUrl);
+  const showPopulationRef = useRef(showPopulation);
+  const drawModeRef = useRef(drawMode);
+  const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   geojsonRef.current = geojson;
   onClickRef.current = onPolygonClick;
+  onHoverRef.current = onPolygonHover;
   showRejectedRef.current = showRejected;
+  facilitiesRef.current = facilities;
+  showFacilitiesRef.current = showFacilities;
+  showRoadsRef.current = showRoads;
+  populationUrlRef.current = populationUrl;
+  showPopulationRef.current = showPopulation;
+  drawModeRef.current = drawMode;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -229,25 +421,48 @@ export default function CompareMap({
           addPolygonLayers(map, geojsonRef.current);
           setRejectedVisibility(map, showRejectedRef.current);
         }
+        if (facilitiesRef.current) {
+          addFacilitiesLayers(map, facilitiesRef.current);
+          setLayerVisibility(map, "facility-points-circle", showFacilitiesRef.current);
+          setLayerVisibility(map, "roads-line", showRoadsRef.current);
+        }
+        if (populationUrlRef.current) {
+          addPopulationLayer(map, populationUrlRef.current, bounds);
+          setLayerVisibility(map, "population-layer", showPopulationRef.current);
+        }
+        addHazardZoneLayers(map);
       };
       if (map.isStyleLoaded()) onLoad();
       else map.on("load", onLoad);
 
       for (const layerId of ["changes-fill", "changes-rejected-fill"]) {
         map.on("click", layerId, (e) => {
+          if (drawModeRef.current) return;
           if (e.features && e.features[0]) onClickRef.current?.(e.features[0]);
         });
         map.on("mouseenter", layerId, () => {
           map.getCanvas().style.cursor = "pointer";
         });
+        map.on("mousemove", layerId, (e) => {
+          if (e.features && e.features[0]) onHoverRef.current?.(String(e.features[0].properties?.id));
+        });
         map.on("mouseleave", layerId, () => {
           map.getCanvas().style.cursor = "";
+          onHoverRef.current?.(null);
         });
       }
     };
 
     addImage(afterMap, "after-img", afterUrl);
     addImage(beforeMap, "before-img", beforeUrl);
+
+    for (const map of [afterMap, beforeMap]) {
+      map.on("click", (e) => {
+        if (!drawModeRef.current) return;
+        const { lng, lat } = map.unproject(e.point);
+        setDrawPoints((prev) => [...prev, [lng, lat]]);
+      });
+    }
 
     let syncing = false;
     const sync = (src: MLMap, dst: MLMap) => () => {
@@ -276,7 +491,7 @@ export default function CompareMap({
   useEffect(() => {
     if (!mapsRef.current || !geojson) return;
     for (const map of [mapsRef.current.before, mapsRef.current.after]) {
-      if (map.isStyleLoaded() && map.getSource("before-img")) {
+      if (mapHasImage(map)) {
         addPolygonLayers(map, geojson);
         setRejectedVisibility(map, showRejected);
       }
@@ -292,6 +507,84 @@ export default function CompareMap({
   }, [showRejected]);
 
   useEffect(() => {
+    if (!mapsRef.current || !facilities) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (mapHasImage(map)) {
+        addFacilitiesLayers(map, facilities);
+        setLayerVisibility(map, "facility-points-circle", showFacilities);
+        setLayerVisibility(map, "roads-line", showRoads);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facilities]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      setLayerVisibility(map, "facility-points-circle", showFacilities);
+    }
+  }, [showFacilities]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      setLayerVisibility(map, "roads-line", showRoads);
+    }
+  }, [showRoads]);
+
+  useEffect(() => {
+    if (!mapsRef.current || !populationUrl) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (mapHasImage(map)) {
+        addPopulationLayer(map, populationUrl, bounds);
+        setLayerVisibility(map, "population-layer", showPopulation);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [populationUrl]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      setLayerVisibility(map, "population-layer", showPopulation);
+    }
+  }, [showPopulation]);
+
+  useEffect(() => {
+    if (!drawMode) setDrawPoints([]);
+  }, [drawMode]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (map.getSource("hazard-zone")) setHazardZoneData(map, drawPoints, false);
+    }
+  }, [drawPoints]);
+
+  useEffect(() => {
+    if (!mapsRef.current || drawMode) return; // drawing in progress takes precedence
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (!map.getSource("hazard-zone")) continue;
+      if (hazardZone) {
+        setHazardZoneData(map, hazardZone.coordinates[0].slice(0, -1) as [number, number][], true);
+      } else {
+        setHazardZoneData(map, [], false);
+      }
+    }
+  }, [hazardZone, drawMode]);
+
+  function finishDrawing() {
+    if (drawPoints.length < 3) return;
+    onDrawComplete?.({ type: "Polygon", coordinates: [[...drawPoints, drawPoints[0]]] });
+    setDrawPoints([]);
+  }
+
+  function cancelDrawing() {
+    onDrawComplete?.(null);
+    setDrawPoints([]);
+  }
+
+  useEffect(() => {
     if (!mapsRef.current) return;
     for (const map of [mapsRef.current.before, mapsRef.current.after]) {
       if (map.getLayer("changes-selected")) {
@@ -299,6 +592,31 @@ export default function CompareMap({
       }
     }
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (map.getLayer("changes-hover")) {
+        map.setFilter("changes-hover", ["==", ["get", "id"], hoveredId ?? "__none__"]);
+      }
+    }
+  }, [hoveredId]);
+
+  useEffect(() => {
+    if (!mapsRef.current || !geojson || !zoomToId) return;
+    const feature = geojson.features.find((f) => String(f.properties?.id) === zoomToId);
+    if (!feature) return;
+    const bbox = geometryBbox(feature.geometry);
+    if (!bbox) return;
+    const [west, south, east, north] = bbox;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      map.fitBounds(
+        [[west, south], [east, north]],
+        { padding: 80, maxZoom: 17, duration: 600 }
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomToId]);
 
   useEffect(() => {
     if (clipDivRef.current) {
@@ -438,6 +756,58 @@ export default function CompareMap({
       </div>
 
       <Legend showRejected={showRejected} />
+
+      {drawMode && (
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "white",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-sm)",
+            padding: "8px 12px",
+            fontSize: "var(--font-size-xs)",
+            zIndex: 15,
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+          }}
+        >
+          <span>Click the map to add points ({drawPoints.length} so far). Need at least 3.</span>
+          <button
+            onClick={finishDrawing}
+            disabled={drawPoints.length < 3}
+            style={{
+              padding: "4px 10px",
+              fontSize: "var(--font-size-xs)",
+              border: "none",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--color-accent)",
+              color: "white",
+              cursor: drawPoints.length < 3 ? "not-allowed" : "pointer",
+              opacity: drawPoints.length < 3 ? 0.5 : 1,
+            }}
+          >
+            Finish zone
+          </button>
+          <button
+            onClick={cancelDrawing}
+            style={{
+              padding: "4px 10px",
+              fontSize: "var(--font-size-xs)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-sm)",
+              background: "white",
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,12 +1,13 @@
 # Handoff — TerraWatch
 
-You're picking this up at the start of **Phase 5**. This file is the
+You're picking this up at the start of **Phase 6** (Phase 5 is done,
+branch `phase-5-mini`, PR open to main). This file is the
 practical "get running and know what's real" doc. `README.md` has the
 fuller technical writeup per phase; `PROJECT_BRIEF.md` is the original
 spec; `terrawatch-phase-prompts.md` has the Phase 5-8 prompts to paste
 into Claude Code one at a time.
 
-## Status: Phases 1-4 done
+## Status: Phases 1-5 done
 
 ### What works
 
@@ -31,7 +32,7 @@ into Claude Code one at a time.
   kept ones), an Engine dropdown, a quiet amber quality-warning banner,
   and an Accuracy page with a real ablation table (raw → +morphology →
   +false-alarm filter).
-- 55 unit tests pass (`backend/tests/`).
+- 69 unit tests pass (`backend/tests/`).
 
 ### Phase 4: false-alarm filter — what changed, and the honest results
 
@@ -119,9 +120,161 @@ polygon (1.56M m², centroid 11.486°N/76.152°E, right at Mundakkai) stays
 `status: kept`. Final count: 187 candidates → 179 kept, 8 rejected (cloud:
 7, vegetation_seasonal: 1).
 
-Also not built yet: population/facility/priority-queue impact analysis
-(Phase 5, next), auto-fetch UI (Phase 6), LLM summaries/ask-the-map
+Also not built yet: auto-fetch UI (Phase 6), LLM summaries/ask-the-map
 (Phase 7), reports/alerts (Phase 8).
+
+### Phase 5 (branch `phase-5-mini`): impact layer -- population, facilities,
+priority queue, prevention mode
+
+Built in two passes (an initial scoped-down "mini" slice, then the rest
+of the full Phase 5 spec), plus a round of demo-blocking bug fixes along
+the way. All of it is on `phase-5-mini`; summarized as one coherent
+feature set here since that's how it ships.
+
+**1. Change-type bug fix (Phase 4 code, explicitly requested):** the real
+Wayanad landslide polygon (ΔNDVI -0.13, ΔNDBI +0.085, texture_change_frac
+0.47, 1.56M m²) was mislabeled `new_construction` -- bare soil/debris from
+a real landslide can raise ΔNDBI the same way construction does (SWIR/NIR
+ratio doesn't cleanly separate the two), and the strict landslide rule's
+NDVI threshold and NDBI ceiling were both just barely missed. Added a
+texture-gated loose landslide path in `app/pipeline/change_type.py`
+(`LANDSLIDE_NDVI_LOOSE_THRESHOLD`, `LANDSLIDE_NDBI_LOOSE_CEILING`,
+`LANDSLIDE_TEXTURE_FLOOR`, `LANDSLIDE_LARGE_AREA_M2`): large contiguous
+area + high texture change is a tell a freshly built structure can't
+fake. Also capped `new_construction`'s max area
+(`NEW_CONSTRUCTION_MAX_AREA_M2`) so a sprawling ΔNDBI blob can't default
+into it. Two new regression tests in `test_change_type.py`.
+
+**2. Population** (`app/impact/population.py`): WorldPop India 2020 1km
+population-count raster (`scripts/download_population.py`, ~18 MB,
+gitignored, one country-wide file covers every demo scene). Per kept
+polygon: `population_est` (sum of raster pixels inside the polygon) and
+`population_buffer_est` (sum inside polygon + a configurable buffer,
+default 250 m, `POPULATION_BUFFER_M`) via a windowed raster read +
+per-polygon rasterized mask -- no area-weighting needed since WorldPop
+pixels are already population counts. Always labeled "(estimate)" in the
+UI. Skips gracefully if the raster file is missing (`population_available:
+false` on the analysis, fields stay `None` -- never invented). Also
+generates a colorized overlay PNG (`generate_population_overlay_png`,
+yellow→red ramp, alpha scaled by density, upsampled for a smooth display)
+served at `GET /api/analyses/{id}/imagery/population`.
+
+**3. Facilities** (`app/impact/facilities.py`): extended beyond the mini
+version's hospitals/clinics/schools to also fetch **main roads** (full
+line geometry via Overpass `out geom;`) and **shelters**
+(`amenity=shelter` / `emergency=shelter`, filtering out the much more
+common "bus-stop waiting shed" tagging of `amenity=shelter` in India so
+it isn't mostly noise). New `nearest_main_road_m` (point-to-line distance
+in the scene's projected CRS) and `nearby_facilities_json` (nearest 5
+hospitals/schools/shelters/roads within `FACILITY_LIST_MAX_DISTANCE_M`,
+sorted by distance) per kept polygon. New `GET /api/analyses/{id}/
+facilities` endpoint (reads the same disk cache populated during the
+analysis run, so no extra fetch in the common case) feeds the map's
+Facilities/Roads layers.
+
+**4. Priority score v2** (`app/pipeline/priority.py`), matching the full
+PROJECT_BRIEF formula:
+```
+priority = w1*sev_score + w2*norm(population_est) + w3*facility_proximity
+           + w4*confidence + w5*route_impact
+```
+`route_impact` is reserved for Phase 7 (`w5` defaults to 0.0).
+`facility_proximity` = closeness of whichever of hospital/school is
+nearer (linear decay to 0 at `PRIORITY_PROXIMITY_MAX_M`, 2 km default).
+Weights live in `app/settings.py`, persisted to `data/settings.json`,
+editable via `GET`/`POST /api/settings/weights` and the new **Settings**
+page (left nav) -- by design, editing them applies to the **next**
+analysis you run, not a live recompute of whatever's already on screen
+(kept deliberately simple). `priority_reason` now mentions the people
+estimate, e.g. "High severity; ~420 people estimated nearby; 180 m from a
+hospital."
+
+**5. Prevention mode / hazard zones:** a lightweight click-to-draw tool
+on the map (`CompareMap`'s `drawMode`/`onDrawComplete` props -- click to
+add vertices, "Finish zone"/"Cancel", no external drawing library). The
+zone is drawn **after** seeing the analysis results (you need to see
+where `new_construction` was detected to draw around it), so it's applied
+via a new `POST /api/analyses/{id}/hazard_zone` that recomputes directly
+from the saved GeoJSON/GPKG columns (`recompute_hazard_zone_gdf` in
+`priority.py`, pure geopandas -- no re-detection, no re-fetch of
+facilities/population). `in_hazard_zone=true` on any `new_construction`
+kept polygon whose centroid falls in the zone; in Prevention mode those
+rank first (by `priority_score` among themselves), everything else
+follows normally. Wording is exactly "New structure detected in hazard
+zone — verify" (`config.HAZARD_ZONE_WORDING`), never "illegal".
+
+**6. Frontend:**
+- `PriorityPanel.tsx`: severity filter chips (All/High/Medium/Low), top
+  10 rows by default with a "Show all (N)" button (still scrollable),
+  people-estimate per row, two-way hover highlighting with the map (new
+  `changes-hover` map layer + `hoveredId` state in `App.tsx`).
+- Map layer toggles (left panel): Population (raster), Facilities
+  (color-coded circles, no emoji), Roads (grey lines).
+- Layout fix: the right panel (Priority queue / polygon details) is now
+  a flex sibling of the map, not an absolute overlay, so the map keeps
+  its own width and the After label/image are never hidden. Collapsed by
+  default, with a vertical "Priority (N)" / "Close" toggle rail; the
+  map's existing ResizeObserver picks up the width change automatically.
+- Summary strip (bottom of map): kept/rejected counts, total estimated
+  people in affected areas, count of priority areas near a facility --
+  plain typographic numbers, matching the design brief.
+- `SettingsPage.tsx`: edit the five weights.
+
+**7. Two real bugs found and fixed via browser-driven testing (not just
+unit tests):**
+- The map's reactive layer-sync effects (geojson/facilities/population)
+  checked `map.isStyleLoaded() && map.getSource("before-img")` for
+  **both** maps -- but the after-map's image source is literally named
+  `"after-img"`, so that check was always false there, and
+  `isStyleLoaded()` itself is flaky (can read false moments after any
+  source update even once the map is fully usable). Facilities/roads/
+  population layers were silently never attaching to the after-map.
+  Fixed with a `mapHasImage()` helper checking either source name,
+  dropping the `isStyleLoaded()` gate. Caught by instrumenting a test
+  script with `queryRenderedFeatures` -- a visual screenshot alone looked
+  plausible enough that this could easily have shipped broken.
+- After applying a hazard zone, an already-open polygon details panel
+  kept showing a stale pre-update feature snapshot (`selected` state
+  wasn't refreshed from the new geojson). Fixed in `App.tsx`'s
+  `handleDrawComplete`.
+
+**8. Tests:** 12 new backend unit tests (`test_priority.py` -- score
+weighting/ranking/reason text, hazard-zone flagging restricted to
+`new_construction`, nearest-road + nearby-facilities-list distance math;
+`test_population.py` -- population sum against a synthetic raster with a
+known value, graceful skip when the raster file is missing) plus the 2
+change-type regression tests above. 69 tests total, all passing.
+
+**9. End-to-end verification:**
+- **Wayanad, Disaster mode, Auto engine** (resolves to Engine 2/U-Net):
+  187 candidates → 179 kept, 8 rejected -- same real numbers Phase 4
+  reported. Population/Facilities/Roads layers all confirmed rendering
+  at their correct real-world positions. Summary strip: ~6,695 estimated
+  people in affected areas, 74 priority areas near a facility.
+- **Wayanad, Prevention mode, hand-drawn zone:** drew a zone (4 clicks)
+  around two real `new_construction` polygons (2,700 m² and 800 m²,
+  centroid ~11.492°N/76.168°E) using the browser draw tool -- both got
+  flagged `in_hazard_zone: true`, re-ranked to #1 and #2, with the exact
+  required banner text. **Pune 2019→2024 was tried first** (per the
+  original brief's suggestion) but its detections under the current
+  engine/thresholds don't include any `new_construction` (band_count is
+  6 so NDBI is available, but none of its 4 kept polygons cross the
+  threshold) -- Wayanad was used instead for this test, since it's the
+  pair that actually has real `new_construction` detections to draw
+  around. Disclosed here rather than silently substituted.
+- Export (GeoJSON + GPKG) verified after a hazard-zone application:
+  `population_est`, `population_buffer_est`, `nearest_main_road_m`,
+  `nearby_facilities_json`, `in_hazard_zone`, `priority_score/rank/reason`
+  all present and consistent on both formats.
+- Screenshots in `~/Desktop/screenshots/phase5/`: `layout_fixed.png`
+  (landslide label + layout fix), `disaster_map_layers.png` (population/
+  facilities/roads layers), `prevention_hazard_flagged.png` (hazard zone
+  applied, banner + rank #1), plus the earlier mini-version screenshots.
+
+**Did not touch:** Phase 4's false-alarm filter or detection logic
+(`app/pipeline/false_alarm.py`, the engines) -- the one Phase 4 file
+touched, `change_type.py`, was an explicit bug-fix request, documented
+above, not a scope change.
 
 ## Setup from a fresh clone
 
@@ -164,6 +317,14 @@ cd ../.. && python scripts/train_oscd_unet.py   # ~4 min on Apple Silicon MPS
 No Kaggle account needed (HF mirror — see `scripts/oscd_data.py`). If you
 skip either model, the pipeline still runs; `engine`/`engine_key`/
 `engine_fell_back` in `GET /api/analyses/{id}` tell you what actually ran.
+
+**Download the population raster** (optional — Phase 5's population_est/
+population_buffer_est skip gracefully without it, `population_available:
+false`):
+
+```bash
+python scripts/download_population.py   # ~18 MB, WorldPop India 2020 1km
+```
 
 Start the API with `--reload` (see Gotcha #4):
 
@@ -303,6 +464,22 @@ python scripts/fetch_oam_barbuda.py      # Barbuda, Hurricane Irma (high-res)
     0.35 (comfortably above the ~0.25-0.3 vegetation-loss NDWI bump) so
     `change_type` doesn't mislabel a landslide as flooding.
 
+12. **MapLibre's `isStyleLoaded()` is flaky, and each map's image source
+    has a different name.** The split-view has two independent `MLMap`
+    instances; the before-map's imagery source is named `"before-img"`,
+    the after-map's `"after-img"`. A reactive effect that checks
+    `map.getSource("before-img")` for *both* maps will silently never be
+    true for the after-map. Separately, `isStyleLoaded()` can report
+    `false` for a brief window after *any* source update even on an
+    otherwise fully-rendered map — don't gate a "has this map finished
+    its initial setup" check on it. `app/map/CompareMap.tsx`'s
+    `mapHasImage()` checks both source names and nothing else. This bit
+    the Population/Facilities/Roads map layers specifically (frontend/src/
+    map/CompareMap.tsx) — they looked plausible in a screenshot (map
+    rendered fine) but the layers had silently never attached to the
+    after-map. Caught by instrumenting a test script with
+    `queryRenderedFeatures`, not by eyeballing a screenshot.
+
 ## Folder structure
 
 ```
@@ -317,40 +494,65 @@ terrawatch/
   backend/                      FastAPI app (Python 3.11)
     app/
       main.py                     App entrypoint, CORS, GET /api/metrics
-      models.py                   Analysis table (quality_report, kept/rejected counts, summary_line, ...)
-      config.py                   ALL tunable thresholds -- detection, false-alarm, change-type
-      api/analyses.py             All /api/analyses* routes
+      models.py                   Analysis table (quality_report, kept/rejected counts, summary_line,
+                                   population/hazard-zone summary fields as of Phase 5)
+      config.py                   ALL tunable thresholds -- detection, false-alarm, change-type, impact/priority
+      settings.py                 NEW: editable priority weights, persisted to data/settings.json
+      api/
+        analyses.py                 All /api/analyses* routes, incl. /facilities and POST /hazard_zone
+        settings.py                 NEW: GET/POST /api/settings/weights
       geo/
         align.py                    Co-register after onto before's grid -> AlignedPair
         preview.py                  AlignedPair -> matching PNG previews
-        quality.py                  NEW: cloud masks (SCL/heuristic), misalignment (phase correlation)
-        features.py                 NEW: NDVI/NDWI/NDBI/brightness/texture per-pixel maps
+        quality.py                  Cloud masks (SCL/heuristic), misalignment (phase correlation)
+        features.py                 NDVI/NDWI/NDBI/brightness/texture per-pixel maps
         morphology.py                Threshold -> opening/closing (NOT min-area anymore)
-        vectorize.py                 Mask -> polygons; generic extra_maps -> PolygonResult.extra
-        export.py                    GeoDataFrame -> GeoJSON/GPKG, now incl. status/reject_reason/change_type
+        vectorize.py                 Mask -> polygons; generic extra_maps -> PolygonResult.extra;
+                                      compute_bounds_4326() shared by area-CRS resolution + OSM lookup
+        export.py                    GeoDataFrame -> GeoJSON/GPKG, incl. status/reject_reason/change_type
+                                      and (Phase 5) population/facility/hazard-zone/priority fields
       engines/                     common.py, spectral.py, siamese.py, tinycd_src/, unet_model.py, engine2.py, select.py
+      impact/                      NEW (Phase 5): social-impact computations
+        facilities.py                OSM hospitals/clinics/schools/shelters/roads via Overpass, disk-cached
+        population.py                WorldPop raster sum (population_est/_buffer_est) + colorized overlay PNG
       pipeline/
-        run.py                       Orchestrates: align -> quality -> detect -> filter -> vectorize -> false_alarm -> change_type -> export
+        run.py                       Orchestrates: align -> quality -> detect -> filter -> vectorize ->
+                                      false_alarm -> change_type -> severity -> impact (Phase 5) -> export
         severity.py                  sev_score (KEPT polygons only, as of Phase 4)
-        false_alarm.py               NEW: kept/rejected classification, 5 reasons, priority order
-        change_type.py               NEW: estimated change type for kept polygons, 6 types
-        ablation.py                  NEW: raw/+morphology/+false-alarm masks for plain (non-geo) eval
-      impact/ llm/ reports/ alerts/  Empty — Phase 5, 7, 8
+        false_alarm.py               Kept/rejected classification, 5 reasons, priority order
+        change_type.py               Estimated change type for kept polygons, 6 types (landslide/new_construction
+                                      rule fix, Phase 5 -- see Gotcha #11/HANDOFF text above)
+        priority.py                  NEW (Phase 5): priority_score (severity+population+facility+confidence),
+                                      hazard-zone flagging + Prevention-mode re-ranking
+        ablation.py                  raw/+morphology/+false-alarm masks for plain (non-geo) eval
+      llm/ reports/ alerts/        Empty — Phase 7, 8
     scripts/
       evaluate.py                    levircd/oscd subcommands, --ablation flag -> data/eval_results.json
       oscd_data.py train_oscd_unet.py sentinel2_fetch.py
       fetch_real_test_pair.py fetch_wayanad.py fetch_oam_barbuda.py
-    tests/                         geometry, severity, engine_select, false_alarm, change_type, quality
+      download_population.py         NEW: WorldPop India 2020 1km raster -> data/population/
+    tests/                         geometry, severity, engine_select, false_alarm, change_type, quality,
+                                    priority, population (Phase 5)
     models/                        Gitignored — tinycd/levir_best.pth, engine2/unet_oscd.pth
     data/                          Gitignored except population/.gitkeep and eval_results.json
+                                    (population/*.tif, osm_cache/*.json, settings.json also gitignored)
 
   frontend/
     src/
-      App.tsx                     Upload form, engine dropdown, quality banner, rejected toggle, summary line
-      api/client.ts                Types incl. QualityReport, kept/rejected counts
-      map/CompareMap.tsx            Kept (severity) + needs-review (dotted) + rejected (grey dashed) layers
-      panels/PolygonPanel.tsx       Plain-language reject reason / estimated change type + rule
-      pages/AccuracyPage.tsx        Ablation table, grouped by engine+dataset, stage rows
+      App.tsx                     Upload form, engine/mode, quality banner, layer toggles (Phase 5:
+                                   Population/Facilities/Roads), hazard-zone draw control, summary strip
+      api/client.ts                Types incl. QualityReport, FacilitiesData, PriorityWeights
+      map/CompareMap.tsx            Kept (severity) + needs-review (dotted) + rejected (grey dashed) layers;
+                                     Phase 5: facilities/roads/population layers, hazard-zone draw tool,
+                                     hover highlighting -- see mapHasImage() Gotcha #12 above
+      panels/
+        PolygonPanel.tsx             Plain-language reject reason / estimated change type + rule;
+                                      Phase 5: nearest hospital/school/road, population, hazard-zone banner
+        PriorityPanel.tsx            NEW (Phase 5): ranked list, severity filter, top-10 + "Show all",
+                                      people estimate, two-way hover
+      pages/
+        AccuracyPage.tsx             Ablation table, grouped by engine+dataset, stage rows
+        SettingsPage.tsx             NEW (Phase 5): edit priority weights
       styles/tokens.css
     vite.config.ts
 ```

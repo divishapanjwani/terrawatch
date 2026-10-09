@@ -1,6 +1,7 @@
 """Tunable pipeline defaults. Kept in one place so the UI can display the
 exact values used (e.g. the severity formula tooltip) and so they're easy
 to change without hunting through the pipeline code."""
+from pathlib import Path
 
 # Binary threshold applied to the engine's change-probability map.
 DETECTION_THRESHOLD = 0.5
@@ -17,7 +18,10 @@ SIMPLIFY_TOLERANCE_M = 1.0
 SEVERITY_HIGH = 0.66
 SEVERITY_MEDIUM = 0.33
 
-PROGRESS_STEPS = ["validating", "quality_check", "detecting", "filtering", "vectorizing", "done"]
+PROGRESS_STEPS = [
+    "validating", "quality_check", "detecting", "filtering", "vectorizing",
+    "impact_analysis", "done",
+]
 
 # ---------------------------------------------------------------------------
 # Quality check (app/geo/quality.py)
@@ -107,4 +111,89 @@ STRUCTURE_LOST_NDBI_THRESHOLD = -0.08
 LANDSLIDE_NDVI_THRESHOLD = -0.15
 LANDSLIDE_NDBI_CEILING = 0.05
 LANDSLIDE_MIN_AREA_M2 = 500.0
+
+# Loose landslide path: bare soil/rock/debris exposed by a real landslide
+# can raise NDBI into new-construction range (a known remote-sensing
+# confusion -- SWIR/NIR ratio doesn't cleanly separate "bare ground" from
+# "built-up"; see Gotcha #11 in HANDOFF.md) and the NDVI drop can land
+# short of LANDSLIDE_NDVI_THRESHOLD if some ground cover remains amid the
+# debris. Verified against the real Wayanad landslide polygon (ΔNDVI
+# -0.13, ΔNDBI +0.085, texture_change_frac 0.47, 1.56M m²), which the
+# strict rule above misses and new_construction's looser ΔNDBI-only check
+# then wrongly claims. The tell that actually holds here: genuine ground
+# restructuring (high texture_change_frac) across a large contiguous
+# area -- a freshly built structure is small and local, never a sprawling
+# high-texture scar -- so this path requires BOTH, at a much larger area
+# floor than the strict rule, to stay a high-confidence signal rather
+# than a construction-detector loophole.
+LANDSLIDE_NDVI_LOOSE_THRESHOLD = -0.10
+LANDSLIDE_NDBI_LOOSE_CEILING = 0.10
+LANDSLIDE_TEXTURE_FLOOR = 0.35
+LANDSLIDE_LARGE_AREA_M2 = 50000.0
+
+# A real new-construction footprint (a building, a cluster of buildings)
+# is small and local -- it never legitimately spans this much contiguous
+# area in one polygon. Above this, a ΔNDBI-only signal is more likely
+# bare soil/debris (see LANDSLIDE_* loose path above) than construction.
+NEW_CONSTRUCTION_MAX_AREA_M2 = 50000.0
+
 VEGETATION_LOSS_NDVI_THRESHOLD = -0.08
+
+# ---------------------------------------------------------------------------
+# Impact: OSM facilities + priority score (KEPT polygons only, Disaster mode)
+# app/impact/facilities.py, app/pipeline/priority.py
+# ---------------------------------------------------------------------------
+
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OSM_TIMEOUT_S = 25
+
+# Degrees added around the analysis bbox before querying OSM for hospitals/
+# clinics/schools -- a small rural scene often has none inside its own tight
+# bbox, but a real nearest hospital a few km outside it. ~0.15 deg ~ 16 km.
+OSM_FACILITY_BUFFER_DEG = 0.15
+
+# priority_score = w_severity * sev_score + w_confidence * confidence
+#                 + w_hospital * closeness(nearest_hospital_m)
+#                 + w_school * closeness(nearest_school_m)
+# closeness(d) = clamp(1 - d / PRIORITY_PROXIMITY_MAX_M, 0, 1): 1.0 right next
+# to a facility, 0 at or beyond PRIORITY_PROXIMITY_MAX_M.
+PRIORITY_PROXIMITY_MAX_M = 2000.0
+
+# ---------------------------------------------------------------------------
+# Population (app/impact/population.py) -- WorldPop raster, India-wide,
+# covers both demo scenes. Gitignored; see scripts/download_population.py.
+# ---------------------------------------------------------------------------
+POPULATION_RASTER_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "population" / "ind_ppp_2020_1km_Aggregated_UNadj.tif"
+)
+POPULATION_BUFFER_M = 250.0
+
+# ---------------------------------------------------------------------------
+# OSM roads + shelters (app/impact/facilities.py)
+# ---------------------------------------------------------------------------
+
+# Main road classes queried alongside hospitals/clinics/schools/shelters.
+OSM_MAIN_ROAD_HIGHWAY_TYPES = ["motorway", "trunk", "primary", "secondary"]
+
+# Radius for the "nearby facilities" list shown in polygon details.
+FACILITY_LIST_MAX_DISTANCE_M = 1000.0
+FACILITY_LIST_MAX_ITEMS = 5
+
+# ---------------------------------------------------------------------------
+# Priority score v2 (app/pipeline/priority.py) -- full Phase 5 formula:
+# priority = w1*sev_score + w2*norm(population_est) + w3*facility_proximity
+#            + w4*confidence + w5*route_impact (route_impact reserved, Phase 7)
+# facility_proximity = closer of hospital/school closeness (see
+# PRIORITY_PROXIMITY_MAX_M above). Editable via scripts/settings -- see
+# app/settings.py; these are the defaults for new analyses.
+# ---------------------------------------------------------------------------
+PRIORITY_W1_SEVERITY = 0.35
+PRIORITY_W2_POPULATION = 0.25
+PRIORITY_W3_FACILITY_PROXIMITY = 0.2
+PRIORITY_W4_CONFIDENCE = 0.2
+PRIORITY_W5_ROUTE_IMPACT = 0.0  # reserved for Phase 7
+
+# ---------------------------------------------------------------------------
+# Prevention mode: hazard zones (app/pipeline/priority.py, app/api/analyses.py)
+# ---------------------------------------------------------------------------
+HAZARD_ZONE_WORDING = "New structure detected in hazard zone — verify"

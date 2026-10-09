@@ -44,6 +44,19 @@ class PolygonResult:
     change_type: Optional[str] = None
     change_type_rule: Optional[str] = None
     needs_review: bool = False
+    # Impact/priority (app/pipeline/priority.py), KEPT polygons only.
+    nearest_hospital_m: Optional[float] = None
+    nearest_hospital_name: Optional[str] = None
+    nearest_school_m: Optional[float] = None
+    nearest_school_name: Optional[str] = None
+    nearest_main_road_m: Optional[float] = None
+    nearby_facilities_json: Optional[str] = None
+    population_est: Optional[float] = None
+    population_buffer_est: Optional[float] = None
+    in_hazard_zone: bool = False
+    priority_score: Optional[float] = None
+    priority_rank: Optional[int] = None
+    priority_reason: Optional[str] = None
 
 
 def native_pixel_area_m2(aligned: AlignedPair) -> float:
@@ -61,6 +74,16 @@ def native_pixel_area_m2(aligned: AlignedPair) -> float:
     px_w_m = abs(aligned.transform.a) * m_per_deg_lon
     px_h_m = abs(aligned.transform.e) * m_per_deg_lat
     return px_w_m * px_h_m
+
+
+def compute_bounds_4326(aligned: AlignedPair) -> tuple:
+    """(west, south, east, north) of the aligned scene in EPSG:4326 --
+    used both for area-CRS resolution below and for the OSM facility
+    lookup in app/impact/facilities.py."""
+    return rasterio.warp.transform_bounds(
+        aligned.crs, "EPSG:4326",
+        *rasterio.transform.array_bounds(aligned.height, aligned.width, aligned.transform),
+    )
 
 
 def resolve_area_crs(crs: CRS, bounds) -> CRS:
@@ -119,10 +142,7 @@ def vectorize(
     ndvi_delta, cloud_overlap_frac, texture_change_frac -- see
     app/geo/features.py and app/pipeline/false_alarm.py."""
     extra_maps = extra_maps or {}
-    native_bounds_4326 = rasterio.warp.transform_bounds(
-        aligned.crs, "EPSG:4326",
-        *rasterio.transform.array_bounds(aligned.height, aligned.width, aligned.transform),
-    )
+    native_bounds_4326 = compute_bounds_4326(aligned)
     area_crs = resolve_area_crs(aligned.crs, native_bounds_4326)
 
     mask_area, transform_area, w_area, h_area = _to_area_grid(
