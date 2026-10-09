@@ -35,6 +35,27 @@ const SEVERITY_COLOR_EXPR: any = [
   "#8A8F98",
 ];
 
+// Flattens a Polygon/MultiPolygon's coordinates into a [west, south, east,
+// north] bbox -- no turf dependency needed for this one lookup.
+function geometryBbox(geometry: GeoJSON.Geometry): [number, number, number, number] | null {
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const visit = (coords: any): void => {
+    if (typeof coords[0] === "number") {
+      const [x, y] = coords;
+      west = Math.min(west, x);
+      east = Math.max(east, x);
+      south = Math.min(south, y);
+      north = Math.max(north, y);
+    } else {
+      coords.forEach(visit);
+    }
+  };
+  if ("coordinates" in geometry) visit(geometry.coordinates);
+  if (!Number.isFinite(west)) return null;
+  return [west, south, east, north];
+}
+
 function boundsToCoords(b: Bounds): [[number, number], [number, number], [number, number], [number, number]] {
   return [
     [b.west, b.north],
@@ -50,6 +71,7 @@ interface Props {
   bounds: Bounds;
   geojson?: FeatureCollection | null;
   selectedId?: string | null;
+  zoomToId?: string | null;
   onPolygonClick?: (feature: MapGeoJSONFeature) => void;
   showRejected?: boolean;
   beforeLabel?: string;
@@ -157,6 +179,7 @@ export default function CompareMap({
   bounds,
   geojson,
   selectedId,
+  zoomToId,
   onPolygonClick,
   showRejected = false,
   beforeLabel = "Before",
@@ -299,6 +322,22 @@ export default function CompareMap({
       }
     }
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!mapsRef.current || !geojson || !zoomToId) return;
+    const feature = geojson.features.find((f) => String(f.properties?.id) === zoomToId);
+    if (!feature) return;
+    const bbox = geometryBbox(feature.geometry);
+    if (!bbox) return;
+    const [west, south, east, north] = bbox;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      map.fitBounds(
+        [[west, south], [east, north]],
+        { padding: 80, maxZoom: 17, duration: 600 }
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomToId]);
 
   useEffect(() => {
     if (clipDivRef.current) {

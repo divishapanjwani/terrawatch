@@ -23,6 +23,13 @@ def _attrs(p: PolygonResult, analysis_id: str) -> dict:
         "sev_score": round(p.sev_score, 4) if p.sev_score is not None else None,
         "centroid_lat": round(p.centroid_lat, 6),
         "centroid_lon": round(p.centroid_lon, 6),
+        "nearest_hospital_m": p.nearest_hospital_m,
+        "nearest_hospital_name": p.nearest_hospital_name,
+        "nearest_school_m": p.nearest_school_m,
+        "nearest_school_name": p.nearest_school_name,
+        "priority_score": p.priority_score,
+        "priority_rank": p.priority_rank,
+        "priority_reason": p.priority_reason,
     }
 
 

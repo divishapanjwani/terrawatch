@@ -14,6 +14,9 @@ fiona
 torch
 torchvision
 pytest
+requests
+
+# Phase 5 impact: OSM facilities via the Overpass API (app/impact/facilities.py)
 
 # Phase 6 auto-fetch (also used by scripts/fetch_real_test_pair.py today)
 pystac-client

@@ -6,6 +6,7 @@ import "./App.css";
 import CompareMap from "./map/CompareMap";
 import FileDropSlot from "./panels/FileDropSlot";
 import PolygonPanel from "./panels/PolygonPanel";
+import PriorityPanel from "./panels/PriorityPanel";
 import AccuracyPage from "./pages/AccuracyPage";
 import {
   createAnalysis,
@@ -29,6 +30,7 @@ const STEP_LABELS: Record<string, string> = {
   detecting: "Detecting",
   filtering: "Filtering",
   vectorizing: "Vectorizing",
+  impact_analysis: "Impact analysis",
   done: "Done",
 };
 
@@ -54,6 +56,15 @@ export default function App() {
   const [engine, setEngine] = useState<EngineChoice>("auto");
   const [selected, setSelected] = useState<MapGeoJSONFeature | null>(null);
   const [showRejected, setShowRejected] = useState(false);
+  const [zoomToId, setZoomToId] = useState<string | null>(null);
+
+  function handleSelectFromPriority(id: string) {
+    if (state.phase !== "ready") return;
+    const feature = state.geojson.features.find((f) => String(f.properties?.id) === id);
+    if (!feature) return;
+    setSelected(feature as unknown as MapGeoJSONFeature);
+    setZoomToId(id);
+  }
 
   async function handleSubmit() {
     if (!beforeFile || !afterFile) return;
@@ -390,6 +401,7 @@ export default function App() {
             bounds={ready.analysis.bounds}
             geojson={ready.geojson}
             selectedId={selected ? String(selected.properties?.id) : null}
+            zoomToId={zoomToId}
             onPolygonClick={setSelected}
             showRejected={showRejected}
           />
@@ -408,7 +420,16 @@ export default function App() {
             <p>Upload a before/after GeoTIFF pair to begin.</p>
           </div>
         )}
-        {ready && <PolygonPanel feature={selected} onClose={() => setSelected(null)} />}
+        {ready && selected && (
+          <PolygonPanel
+            feature={selected}
+            onClose={() => {
+              setSelected(null);
+              setZoomToId(null);
+            }}
+          />
+        )}
+        {ready && !selected && <PriorityPanel geojson={ready.geojson} onSelect={handleSelectFromPriority} />}
       </main>
         </>
       )}

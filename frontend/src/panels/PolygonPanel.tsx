@@ -158,6 +158,32 @@ export default function PolygonPanel({
       {!isRejected && <Row label="Severity score" value={Number(p.sev_score ?? 0).toFixed(2)} />}
       <Row label="Engine" value={String(p.engine ?? "—")} />
       <Row label="Centroid" value={`${lat.toFixed(5)}, ${lon.toFixed(5)}`} />
+      {!isRejected && p.priority_rank != null && (
+        <>
+          <Row label="Priority rank" value={`#${Math.round(Number(p.priority_rank))}`} />
+          <Row label="Priority score" value={Number(p.priority_score ?? 0).toFixed(2)} />
+        </>
+      )}
+      {!isRejected && (
+        <Row
+          label="Nearest hospital"
+          value={
+            p.nearest_hospital_m != null
+              ? `${Number(p.nearest_hospital_m).toLocaleString()} m — ${String(p.nearest_hospital_name ?? "")}`
+              : "none found"
+          }
+        />
+      )}
+      {!isRejected && (
+        <Row
+          label="Nearest school"
+          value={
+            p.nearest_school_m != null
+              ? `${Number(p.nearest_school_m).toLocaleString()} m — ${String(p.nearest_school_name ?? "")}`
+              : "none found"
+          }
+        />
+      )}
 
       <a
         href={gmapsUrl}
@@ -177,6 +203,12 @@ export default function PolygonPanel({
       >
         Open in Google Maps
       </a>
+
+      {!isRejected && p.priority_reason ? (
+        <p style={{ marginTop: "16px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+          <strong>Priority reason:</strong> {String(p.priority_reason)}
+        </p>
+      ) : null}
 
       {!isRejected && changeType && p.change_type_rule ? (
         <p style={{ marginTop: "16px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>

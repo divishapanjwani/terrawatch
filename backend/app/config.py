@@ -17,7 +17,10 @@ SIMPLIFY_TOLERANCE_M = 1.0
 SEVERITY_HIGH = 0.66
 SEVERITY_MEDIUM = 0.33
 
-PROGRESS_STEPS = ["validating", "quality_check", "detecting", "filtering", "vectorizing", "done"]
+PROGRESS_STEPS = [
+    "validating", "quality_check", "detecting", "filtering", "vectorizing",
+    "impact_analysis", "done",
+]
 
 # ---------------------------------------------------------------------------
 # Quality check (app/geo/quality.py)
@@ -108,3 +111,27 @@ LANDSLIDE_NDVI_THRESHOLD = -0.15
 LANDSLIDE_NDBI_CEILING = 0.05
 LANDSLIDE_MIN_AREA_M2 = 500.0
 VEGETATION_LOSS_NDVI_THRESHOLD = -0.08
+
+# ---------------------------------------------------------------------------
+# Impact: OSM facilities + priority score (KEPT polygons only, Disaster mode)
+# app/impact/facilities.py, app/pipeline/priority.py
+# ---------------------------------------------------------------------------
+
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OSM_TIMEOUT_S = 25
+
+# Degrees added around the analysis bbox before querying OSM for hospitals/
+# clinics/schools -- a small rural scene often has none inside its own tight
+# bbox, but a real nearest hospital a few km outside it. ~0.15 deg ~ 16 km.
+OSM_FACILITY_BUFFER_DEG = 0.15
+
+# priority_score = w_severity * sev_score + w_confidence * confidence
+#                 + w_hospital * closeness(nearest_hospital_m)
+#                 + w_school * closeness(nearest_school_m)
+# closeness(d) = clamp(1 - d / PRIORITY_PROXIMITY_MAX_M, 0, 1): 1.0 right next
+# to a facility, 0 at or beyond PRIORITY_PROXIMITY_MAX_M.
+PRIORITY_WEIGHT_SEVERITY = 0.5
+PRIORITY_WEIGHT_CONFIDENCE = 0.2
+PRIORITY_WEIGHT_HOSPITAL_PROXIMITY = 0.2
+PRIORITY_WEIGHT_SCHOOL_PROXIMITY = 0.1
+PRIORITY_PROXIMITY_MAX_M = 2000.0

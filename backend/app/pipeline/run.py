@@ -6,6 +6,7 @@ import numpy as np
 from rasterio.enums import Resampling
 
 from app import config
+from app.db import OSM_CACHE_DIR
 from app.engines import select, spectral
 from app.engines.common import compute_magnitude_map
 from app.geo import features
@@ -14,9 +15,11 @@ from app.geo.export import save_geojson, save_gpkg
 from app.geo.morphology import clean_mask
 from app.geo.preview import generate_preview_pair
 from app.geo.quality import run_quality_check
-from app.geo.vectorize import vectorize
+from app.geo.vectorize import compute_bounds_4326, vectorize
+from app.impact.facilities import fetch_facilities
 from app.pipeline.change_type import apply_change_types
 from app.pipeline.false_alarm import apply_false_alarm_filter
+from app.pipeline.priority import compute_priority
 from app.pipeline.severity import score_severity
 
 EPS = 1e-6
@@ -106,6 +109,12 @@ def run_pipeline(
     kept = [p for p in polygons if p.status == "kept"]
     rejected = [p for p in polygons if p.status == "rejected"]
     score_severity(kept)  # severity normalization only among real (kept) changes
+
+    progress_cb("impact_analysis")
+    if kept:
+        bounds_4326 = compute_bounds_4326(aligned)
+        facilities = fetch_facilities(bounds_4326, OSM_CACHE_DIR)
+        compute_priority(kept, facilities)
 
     geojson_path = out_dir / "polygons.geojson"
     gpkg_path = out_dir / "polygons.gpkg"
