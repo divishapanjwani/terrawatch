@@ -265,7 +265,7 @@ export default function PolygonPanel({
       <p style={{ marginTop: "16px", fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", lineHeight: 1.5 }}>
         {isRejected
           ? "Rejected changes are excluded from severity scoring and the priority queue, but kept here for transparency."
-          : "Severity measures change strength, not confirmed damage. sev_score = 0.5·norm(area_m²) + 0.5·norm(change_magnitude); High ≥ 0.66, Medium ≥ 0.33, else Low."}
+          : "Severity measures change strength, not confirmed damage. sev_score = max(norm(log area_m²), norm(log change_magnitude)) — log-scaled so one huge outlier doesn't flatten the rest, and a change counts as severe if it's very large OR very intense; High ≥ 0.66, Medium ≥ 0.33, else Low."}
       </p>
     </div>
   );

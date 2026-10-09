@@ -20,22 +20,38 @@ export default function Hero({
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
-        background:
-          "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(47,211,193,0.08), transparent 70%), var(--color-bg)",
+        background: "var(--color-bg)",
       }}
     >
-      {/* Abstract dimmed "satellite" backdrop: contour lines + a faint grid, built from CSS only. */}
+      {/* Real Wayanad satellite imagery (the after-scene, 2-98 percentile
+          stretched the same way the app's own previews are), dimmed and
+          softly blurred so it reads as atmosphere, not content. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: "url(/landing-backdrop.jpg)",
+          backgroundSize: "cover",
+          backgroundPosition: "center 30%",
+          opacity: 0.38,
+          filter: "saturate(0.75)",
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(ellipse 70% 55% at 50% 42%, rgba(11,18,21,0.45), rgba(11,18,21,0.88) 75%), linear-gradient(180deg, rgba(11,18,21,0.3), var(--color-bg) 100%)",
+        }}
+      />
       <svg
         aria-hidden
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.35 }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.25 }}
         preserveAspectRatio="xMidYMid slice"
       >
-        <defs>
-          <pattern id="hero-grid" width="48" height="48" patternUnits="userSpaceOnUse">
-            <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#22343A" strokeWidth="1" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#hero-grid)" />
         {[0, 1, 2, 3].map((i) => (
           <ellipse
             key={i}

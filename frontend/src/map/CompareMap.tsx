@@ -879,7 +879,7 @@ function Legend({ showRejected }: { showRejected: boolean }) {
   return (
     <div
       className="ts-float"
-      title="Severity = change strength, not damage. sev_score = 0.5·norm(area_m²) + 0.5·norm(change_magnitude). High ≥ 0.66, Medium ≥ 0.33, else Low."
+      title="Severity = change strength, not damage. sev_score = max(norm(log area_m²), norm(log change_magnitude)) — severe if very large OR very intense. High ≥ 0.66, Medium ≥ 0.33, else Low."
       style={{
         position: "absolute",
         bottom: 12,

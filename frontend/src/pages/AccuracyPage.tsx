@@ -62,19 +62,32 @@ function MiniAblationChart({ rows }: { rows: MetricRecord[] }) {
   );
 }
 
-function MetricCard({ engine, dataset, headline }: { engine: string; dataset: string; headline: MetricRecord }) {
+function MetricCard({ engine, dataset, rows }: { engine: string; dataset: string; rows: MetricRecord[] }) {
+  const raw = rows[0];
+  const filtered = rows[rows.length - 1];
+  const hasFilterStage = rows.length > 1;
+  const headline = filtered;
+
   return (
     <div className="ts-card ts-fade-up" style={{ padding: "14px 16px", flex: "1 1 220px", minWidth: "220px" }}>
       <div className="ts-label" style={{ marginBottom: "2px" }}>
         {ENGINE_LABEL[engine] ?? engine}
       </div>
       <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", marginBottom: "10px" }}>{dataset}</div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginBottom: "6px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginBottom: "4px" }}>
         <span className="ts-metric" style={{ fontSize: "var(--font-size-2xl)" }}>
           {headline.f1.toFixed(3)}
         </span>
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>F1</span>
+        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
+          F1 {hasFilterStage ? "with filter" : ""}
+        </span>
       </div>
+      {hasFilterStage && (
+        <div className="mono" style={{ fontSize: "10px", color: "var(--color-text-faint)", marginBottom: "10px" }}>
+          raw {raw.f1.toFixed(3)} → with filter {filtered.f1.toFixed(3)}
+        </div>
+      )}
+      {!hasFilterStage && <div style={{ marginBottom: "6px" }} />}
       <div style={{ display: "flex", gap: "14px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
         <span>
           P <span className="mono" style={{ color: "var(--color-text)" }}>{pct(headline.precision)}</span>
@@ -132,7 +145,7 @@ export default function AccuracyPage() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "28px" }}>
           {Array.from(groups.entries()).map(([key, rows]) => {
             const [engine, dataset] = key.split("__");
-            return <MetricCard key={key} engine={engine} dataset={dataset} headline={rows[rows.length - 1]} />;
+            return <MetricCard key={key} engine={engine} dataset={dataset} rows={rows} />;
           })}
         </div>
       )}

@@ -15,16 +15,22 @@ function Card({
   label,
   value,
   suffix,
+  prefix,
+  decimals = 0,
   children,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   suffix?: string;
+  prefix?: string;
+  decimals?: number;
   children?: React.ReactNode;
 }) {
   const animated = useCountUp(value);
-  const display = Number.isInteger(value) ? Math.round(animated).toLocaleString() : animated.toFixed(1);
+  const display =
+    (prefix ?? "") +
+    animated.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   return (
     <div
       className="ts-card ts-fade-up"
@@ -121,19 +127,22 @@ export default function KpiStrip({ analysis, geojson }: { analysis: AnalysisStat
         </div>
       </Card>
 
-      <Card icon={<Ruler size={14} />} label="Area changed" value={stats.areaKm2} suffix="km²" />
+      <Card icon={<Ruler size={14} />} label="Area changed" value={stats.areaKm2} suffix="km²" decimals={1} />
 
       <Card
         icon={<Users size={14} />}
-        label="People affected"
+        label="People in changed areas"
         value={analysis.population_available && analysis.total_population_buffer_est != null ? analysis.total_population_buffer_est : 0}
-        suffix={analysis.population_available ? "estimate" : "no data"}
+        prefix={analysis.population_available ? "~" : undefined}
+        suffix={analysis.population_available ? "(estimate)" : "no data"}
+        decimals={0}
       />
 
       <Card
         icon={<MapPinned size={14} />}
         label="Priority areas near facility"
         value={analysis.near_facility_count ?? 0}
+        decimals={0}
       />
     </div>
   );
