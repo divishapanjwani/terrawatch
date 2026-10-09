@@ -510,8 +510,12 @@ export default function CompareMap({
     afterMap.on("move", sync(afterMap, beforeMap));
     beforeMap.on("move", sync(beforeMap, afterMap));
 
-    afterMap.on("mousemove", (e) => setCursorLngLat(e.lngLat));
-    afterMap.on("mouseleave", () => setCursorLngLat(null));
+    // Registered on both maps -- the swipe divider means the cursor can be
+    // over either one depending on slider position.
+    for (const map of [afterMap, beforeMap]) {
+      map.on("mousemove", (e) => setCursorLngLat(e.lngLat));
+      map.on("mouseout", () => setCursorLngLat(null));
+    }
     const updateViewState = () => setViewState({ zoom: afterMap.getZoom(), lat: afterMap.getCenter().lat });
     afterMap.on("move", updateViewState);
     updateViewState();
