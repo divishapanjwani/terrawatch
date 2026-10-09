@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { getPriorityWeights, setPriorityWeights } from "../api/client";
 import type { PriorityWeights } from "../api/client";
 
@@ -9,6 +10,15 @@ const WEIGHT_LABELS: { key: keyof PriorityWeights; label: string; hint: string }
   { key: "w4_confidence", label: "w4 — Confidence", hint: "model confidence in the detection" },
   { key: "w5_route_impact", label: "w5 — Route impact", hint: "reserved for Phase 7 (routes), currently 0" },
 ];
+
+// Mirrors app/config.py's PRIORITY_W1..W5 defaults.
+const DEFAULT_WEIGHTS: PriorityWeights = {
+  w1_severity: 0.35,
+  w2_population: 0.25,
+  w3_facility_proximity: 0.2,
+  w4_confidence: 0.2,
+  w5_route_impact: 0.0,
+};
 
 export default function SettingsPage() {
   const [weights, setWeights] = useState<PriorityWeights | null>(null);
@@ -30,63 +40,58 @@ export default function SettingsPage() {
     }
   }
 
+  function handleReset() {
+    setWeights({ ...DEFAULT_WEIGHTS });
+    setStatus("Reset to defaults — click Save to apply.");
+  }
+
   return (
-    <div style={{ flex: 1, padding: "32px", maxWidth: "560px", overflowY: "auto" }}>
-      <h1 style={{ fontSize: "var(--font-size-lg)", margin: "0 0 4px" }}>Settings</h1>
-      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: "0 0 24px" }}>
+    <div className="ts-scroll" style={{ flex: 1, padding: "32px", maxWidth: "600px", overflowY: "auto" }}>
+      <h1 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, margin: "0 0 6px", letterSpacing: "-0.01em" }}>Settings</h1>
+      <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", margin: "0 0 28px", lineHeight: 1.5 }}>
         Priority score weights: priority = w1·sev_score + w2·norm(population_est) + w3·facility_proximity +
-        w4·confidence + w5·route_impact. Changes apply to the next analysis you run — they don't recompute
-        whatever is currently on screen.
+        w4·confidence + w5·route_impact. Changes apply to the next analysis you run — they don't recompute whatever
+        is currently on screen.
       </p>
 
       {!weights ? (
-        <p style={{ fontSize: "var(--font-size-xs)" }}>Loading…</p>
+        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>Loading…</p>
       ) : (
         <>
-          {WEIGHT_LABELS.map(({ key, label, hint }) => (
-            <div key={key} style={{ marginBottom: "16px" }}>
-              <label style={{ display: "block", fontSize: "var(--font-size-sm)", marginBottom: "2px" }}>
-                {label}
-              </label>
-              <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: "0 0 6px" }}>
-                {hint}
-              </p>
-              <input
-                type="number"
-                step="0.05"
-                min="0"
-                value={weights[key]}
-                onChange={(e) => setWeights({ ...weights, [key]: Number(e.target.value) })}
-                style={{
-                  width: "120px",
-                  padding: "6px 8px",
-                  fontSize: "var(--font-size-sm)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--color-border)",
-                }}
-                className="mono"
-              />
-            </div>
-          ))}
+          <div className="ts-card" style={{ padding: "20px 22px" }}>
+            {WEIGHT_LABELS.map(({ key, label, hint }, i) => (
+              <div key={key} style={{ marginBottom: i < WEIGHT_LABELS.length - 1 ? "22px" : 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "2px" }}>
+                  <label style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text)", fontWeight: 500 }}>{label}</label>
+                  <span className="mono" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-accent)", fontWeight: 600 }}>
+                    {weights[key].toFixed(2)}
+                  </span>
+                </div>
+                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", margin: "0 0 10px" }}>{hint}</p>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={weights[key]}
+                  onChange={(e) => setWeights({ ...weights, [key]: Number(e.target.value) })}
+                  style={{ width: "100%", accentColor: "var(--color-accent)" }}
+                />
+              </div>
+            ))}
+          </div>
 
-          <button
-            onClick={handleSave}
-            style={{
-              padding: "8px 16px",
-              fontSize: "var(--font-size-sm)",
-              borderRadius: "var(--radius-sm)",
-              border: "none",
-              background: "var(--color-accent)",
-              color: "white",
-              cursor: "pointer",
-            }}
-          >
-            Save
-          </button>
+          <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+            <button className="ts-btn ts-btn-primary" onClick={handleSave}>
+              Save
+            </button>
+            <button className="ts-btn" onClick={handleReset}>
+              <RotateCcw size={13} />
+              Reset to defaults
+            </button>
+          </div>
           {status && (
-            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "10px" }}>
-              {status}
-            </p>
+            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "12px" }}>{status}</p>
           )}
         </>
       )}
