@@ -17,6 +17,7 @@ priority_reason is a plain-language sentence citing the top factors:
 severity, people estimate (if population data was available), and
 whichever of hospital/school is nearer.
 """
+
 import json
 
 from pyproj import Transformer
@@ -62,9 +63,18 @@ def _nearest_road(point, roads_lines: list) -> float | None:
 def _nearby_list(point_xy: tuple, hospitals_xy, schools_xy, shelters_xy, roads_named_lines, point) -> list:
     items = []
     for dist, name, ftype in [
-        *[( ((x - point_xy[0]) ** 2 + (y - point_xy[1]) ** 2) ** 0.5, name, "hospital") for x, y, name in hospitals_xy],
-        *[( ((x - point_xy[0]) ** 2 + (y - point_xy[1]) ** 2) ** 0.5, name, "school") for x, y, name in schools_xy],
-        *[( ((x - point_xy[0]) ** 2 + (y - point_xy[1]) ** 2) ** 0.5, name, "shelter") for x, y, name in shelters_xy],
+        *[
+            (((x - point_xy[0]) ** 2 + (y - point_xy[1]) ** 2) ** 0.5, name, "hospital")
+            for x, y, name in hospitals_xy
+        ],
+        *[
+            (((x - point_xy[0]) ** 2 + (y - point_xy[1]) ** 2) ** 0.5, name, "school")
+            for x, y, name in schools_xy
+        ],
+        *[
+            (((x - point_xy[0]) ** 2 + (y - point_xy[1]) ** 2) ** 0.5, name, "shelter")
+            for x, y, name in shelters_xy
+        ],
     ]:
         if dist <= config.FACILITY_LIST_MAX_DISTANCE_M:
             items.append({"type": ftype, "name": name, "distance_m": round(dist, 1)})
@@ -148,7 +158,9 @@ def recompute_hazard_zone_gdf(gdf_kept, hazard_zone_4326, mode: str):
 
     gdf_kept = gdf_kept.copy()
     gdf_kept["in_hazard_zone"] = gdf_kept.apply(
-        lambda row: bool(row["change_type"] == "new_construction" and zone_area.contains(row.geometry.centroid)),
+        lambda row: bool(
+            row["change_type"] == "new_construction" and zone_area.contains(row.geometry.centroid)
+        ),
         axis=1,
     )
 
@@ -188,11 +200,16 @@ def compute_priority(
     area_crs = kept_polygons[0].area_crs
     to_area = Transformer.from_crs("EPSG:4326", area_crs, always_xy=True)
 
-    hospitals_xy = [(*to_area.transform(f["lon"], f["lat"]), f["name"]) for f in facilities.get("hospitals", [])]
+    hospitals_xy = [
+        (*to_area.transform(f["lon"], f["lat"]), f["name"]) for f in facilities.get("hospitals", [])
+    ]
     schools_xy = [(*to_area.transform(f["lon"], f["lat"]), f["name"]) for f in facilities.get("schools", [])]
-    shelters_xy = [(*to_area.transform(f["lon"], f["lat"]), f["name"]) for f in facilities.get("shelters", [])]
+    shelters_xy = [
+        (*to_area.transform(f["lon"], f["lat"]), f["name"]) for f in facilities.get("shelters", [])
+    ]
 
     from shapely.geometry import LineString
+
     roads_named_lines = [
         (r["name"], LineString([to_area.transform(lon, lat) for lon, lat in r["coords"]]))
         for r in facilities.get("roads", [])

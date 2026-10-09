@@ -1,7 +1,7 @@
 import numpy as np
 
-from app.geo.align import AlignedPair
 from app.engines.common import compute_magnitude_map
+from app.geo.align import AlignedPair
 
 ENGINE_NAME = "spectral_baseline"
 

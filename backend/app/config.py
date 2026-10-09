@@ -1,6 +1,7 @@
 """Tunable pipeline defaults. Kept in one place so the UI can display the
 exact values used (e.g. the severity formula tooltip) and so they're easy
 to change without hunting through the pipeline code."""
+
 from pathlib import Path
 
 # Binary threshold applied to the engine's change-probability map.
@@ -14,13 +15,19 @@ MORPH_RADIUS_PX = 1
 # Polygon simplification tolerance, in meters (native projected CRS).
 SIMPLIFY_TOLERANCE_M = 1.0
 
-# Severity tiers: sev_score = 0.5 * norm(area_m2) + 0.5 * norm(change_magnitude)
+# Severity tiers: sev_score = max(norm(log1p(area_m2)), norm(log1p(change_magnitude)))
+# -- see app/pipeline/severity.py for the full rationale.
 SEVERITY_HIGH = 0.66
 SEVERITY_MEDIUM = 0.33
 
 PROGRESS_STEPS = [
-    "validating", "quality_check", "detecting", "filtering", "vectorizing",
-    "impact_analysis", "done",
+    "validating",
+    "quality_check",
+    "detecting",
+    "filtering",
+    "vectorizing",
+    "impact_analysis",
+    "done",
 ]
 
 # ---------------------------------------------------------------------------

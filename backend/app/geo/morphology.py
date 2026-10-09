@@ -1,5 +1,5 @@
 import numpy as np
-from skimage.morphology import opening, closing, disk
+from skimage.morphology import closing, disk, opening
 
 
 def clean_mask(

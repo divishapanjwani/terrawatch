@@ -89,8 +89,12 @@ def run_pipeline(
         from app.engines.select import EngineResolution
 
         resolution = EngineResolution(
-            "spectral", spectral.ENGINE_NAME, engine_choice,
-            select.rule_based_choice(aligned), select.pixel_size_m(aligned), fell_back=True,
+            "spectral",
+            spectral.ENGINE_NAME,
+            engine_choice,
+            select.rule_based_choice(aligned),
+            select.pixel_size_m(aligned),
+            fell_back=True,
         )
     engine_used = resolution.name
     quality_report.engine = engine_used
@@ -104,7 +108,12 @@ def run_pipeline(
 
     progress_cb("vectorizing")
     polygons = vectorize(
-        binary_mask, prob_map, magnitude_map, aligned, config.SIMPLIFY_TOLERANCE_M, engine_used,
+        binary_mask,
+        prob_map,
+        magnitude_map,
+        aligned,
+        config.SIMPLIFY_TOLERANCE_M,
+        engine_used,
         extra_maps=extra_maps,
     )
 
@@ -131,11 +140,12 @@ def run_pipeline(
             apply_hazard_zone(kept, hazard_geom)
         compute_priority(kept, facilities, weights=settings.get_priority_weights(), mode=mode)
 
-        total_population_buffer_est = round(
-            sum(p.population_buffer_est or 0.0 for p in kept), 1
-        ) if population_available else None
+        total_population_buffer_est = (
+            round(sum(p.population_buffer_est or 0.0 for p in kept), 1) if population_available else None
+        )
         near_facility_count = sum(
-            1 for p in kept
+            1
+            for p in kept
             if (p.nearest_hospital_m is not None and p.nearest_hospital_m <= config.PRIORITY_PROXIMITY_MAX_M)
             or (p.nearest_school_m is not None and p.nearest_school_m <= config.PRIORITY_PROXIMITY_MAX_M)
         )
@@ -149,9 +159,8 @@ def run_pipeline(
 
     reject_counts = dict(Counter(p.reject_reason for p in rejected))
     reason_str = ", ".join(f"{k}: {v}" for k, v in sorted(reject_counts.items()))
-    summary_line = (
-        f"{len(polygons)} candidates → {len(kept)} kept, {len(rejected)} rejected"
-        + (f" ({reason_str})" if reason_str else "")
+    summary_line = f"{len(polygons)} candidates → {len(kept)} kept, {len(rejected)} rejected" + (
+        f" ({reason_str})" if reason_str else ""
     )
 
     return {

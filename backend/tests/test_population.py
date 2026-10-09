@@ -24,8 +24,16 @@ def _write_synthetic_raster(path, value=10.0, pixel_deg=0.01, size=50, west=76.0
     transform = Affine.translation(west, north) * Affine.scale(pixel_deg, -pixel_deg)
     arr = np.full((size, size), value, dtype="float32")
     with rasterio.open(
-        path, "w", driver="GTiff", height=size, width=size, count=1,
-        dtype="float32", crs="EPSG:4326", transform=transform, nodata=-99999.0,
+        path,
+        "w",
+        driver="GTiff",
+        height=size,
+        width=size,
+        count=1,
+        dtype="float32",
+        crs="EPSG:4326",
+        transform=transform,
+        nodata=-99999.0,
     ) as dst:
         dst.write(arr, 1)
 
@@ -52,6 +60,7 @@ def test_compute_population_sums_known_value(tmp_path, monkeypatch):
     # A 500m x 500m polygon in UTM 43N, centered near (76.16, 11.47) which
     # lies inside the synthetic raster's extent.
     from pyproj import Transformer
+
     to_utm = Transformer.from_crs("EPSG:4326", UTM_43N, always_xy=True)
     cx, cy = to_utm.transform(76.16, 11.47)
     poly = box(cx - 250, cy - 250, cx + 250, cy + 250)

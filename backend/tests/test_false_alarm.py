@@ -1,7 +1,6 @@
-import pytest
 
 from app import config
-from app.pipeline.false_alarm import classify, available_checks
+from app.pipeline.false_alarm import available_checks, classify
 
 
 class _FakePolygon:
@@ -74,9 +73,14 @@ def test_misalignment_edge_rejected():
 
 
 def test_vegetation_seasonal_rejected_when_ndvi_dominant_and_low_texture():
-    p = _FakePolygon(extra={
-        "ndvi_delta": -0.3, "ndbi_delta": 0.0, "ndwi_delta": 0.0, "texture_change_frac": 0.05,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndvi_delta": -0.3,
+            "ndbi_delta": 0.0,
+            "ndwi_delta": 0.0,
+            "texture_change_frac": 0.05,
+        }
+    )
     status, reason = classify(p, band_count=4)
     assert status == "rejected"
     assert reason == "vegetation_seasonal"
@@ -87,22 +91,28 @@ def test_vegetation_seasonal_not_triggered_with_high_texture_change():
     but it also changes ground texture/structure -- that's the
     discriminator. High texture change should NOT be classified as
     vegetation_seasonal even with a big NDVI shift."""
-    p = _FakePolygon(extra={
-        "ndvi_delta": -0.6, "ndbi_delta": 0.0, "ndwi_delta": 0.0,
-        "texture_change_frac": config.VEGETATION_SEASONAL_TEXTURE_CEILING + 0.1,
-        "brightness_delta_frac": 0.0,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndvi_delta": -0.6,
+            "ndbi_delta": 0.0,
+            "ndwi_delta": 0.0,
+            "texture_change_frac": config.VEGETATION_SEASONAL_TEXTURE_CEILING + 0.1,
+            "brightness_delta_frac": 0.0,
+        }
+    )
     status, reason = classify(p, band_count=4)
     assert reason != "vegetation_seasonal"
 
 
 def test_vegetation_seasonal_not_triggered_with_builtup_signal():
-    p = _FakePolygon(extra={
-        "ndvi_delta": -0.3,
-        "ndbi_delta": config.VEGETATION_SEASONAL_NDBI_CEILING + 0.1,
-        "ndwi_delta": 0.0,
-        "texture_change_frac": 0.05,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndvi_delta": -0.3,
+            "ndbi_delta": config.VEGETATION_SEASONAL_NDBI_CEILING + 0.1,
+            "ndwi_delta": 0.0,
+            "texture_change_frac": 0.05,
+        }
+    )
     status, reason = classify(p, band_count=4)
     assert reason != "vegetation_seasonal"
 
@@ -111,9 +121,14 @@ def test_vegetation_unavailable_for_rgb_only_input():
     """RGB-only (3-band) input can't compute NDVI (needs NIR) -- the
     vegetation_seasonal rule must not fire even if the (unavailable)
     feature happens to be present in extra."""
-    p = _FakePolygon(extra={
-        "ndvi_delta": -0.5, "ndbi_delta": 0.0, "ndwi_delta": 0.0, "texture_change_frac": 0.05,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndvi_delta": -0.5,
+            "ndbi_delta": 0.0,
+            "ndwi_delta": 0.0,
+            "texture_change_frac": 0.05,
+        }
+    )
     status, reason = classify(p, band_count=3)
     assert reason != "vegetation_seasonal"
 
@@ -126,20 +141,29 @@ def test_shadow_illumination_rejected_brightness_only():
 
 
 def test_shadow_illumination_not_triggered_with_real_texture_change():
-    p = _FakePolygon(extra={
-        "brightness_delta_frac": 0.5,
-        "texture_change_frac": config.SHADOW_TEXTURE_FRAC_THRESHOLD + 0.2,
-    })
+    p = _FakePolygon(
+        extra={
+            "brightness_delta_frac": 0.5,
+            "texture_change_frac": config.SHADOW_TEXTURE_FRAC_THRESHOLD + 0.2,
+        }
+    )
     status, reason = classify(p, band_count=3)
     assert reason != "shadow_illumination"
 
 
 def test_kept_when_no_rule_matches():
-    p = _FakePolygon(area_m2=5000, extra={
-        "ndvi_delta": 0.0, "ndbi_delta": 0.0, "ndwi_delta": 0.0,
-        "brightness_delta_frac": 0.0, "texture_change_frac": 0.5,
-        "cloud_overlap": 0.0, "edge_touch": 0.0,
-    })
+    p = _FakePolygon(
+        area_m2=5000,
+        extra={
+            "ndvi_delta": 0.0,
+            "ndbi_delta": 0.0,
+            "ndwi_delta": 0.0,
+            "brightness_delta_frac": 0.0,
+            "texture_change_frac": 0.5,
+            "cloud_overlap": 0.0,
+            "edge_touch": 0.0,
+        },
+    )
     status, reason = classify(p, band_count=4)
     assert status == "kept"
     assert reason is None

@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 from torch import Tensor, reshape, stack
-
 from torch.nn import (
     Conv2d,
     InstanceNorm2d,
@@ -27,9 +26,7 @@ class PixelwiseLinear(Module):
             *[
                 Sequential(
                     Conv2d(fin[i], fout[i], kernel_size=1, bias=True),
-                    PReLU()
-                    if i < n - 1 or last_activation is None
-                    else last_activation,
+                    PReLU() if i < n - 1 or last_activation is None else last_activation,
                 )
                 for i in range(n)
             ]
@@ -38,8 +35,6 @@ class PixelwiseLinear(Module):
     def forward(self, x: Tensor) -> Tensor:
         # Processing the tensor:
         return self._linears(x)
-
-
 
 
 class MixingBlock(Module):
@@ -86,11 +81,7 @@ class MixingMaskAttentionBlock(Module):
         z = self._linear(z_mix)
         z_mix_out = 0 if self._mixing_out is None else self._mixing_out(x, y)
 
-        return (
-            z
-            if self._final_normalization is None
-            else self._final_normalization(z_mix_out * z)
-        )
+        return z if self._final_normalization is None else self._final_normalization(z_mix_out * z)
 
 
 class UpMask(Module):
@@ -101,9 +92,7 @@ class UpMask(Module):
         nout: int,
     ):
         super().__init__()
-        self._upsample = Upsample(
-            scale_factor=scale_factor, mode="bilinear", align_corners=True
-        )
+        self._upsample = Upsample(scale_factor=scale_factor, mode="bilinear", align_corners=True)
         self._convolution = Sequential(
             Conv2d(nin, nin, 3, 1, groups=nin, padding=1),
             PReLU(),

@@ -7,15 +7,16 @@ baseline if the chosen engine's weights aren't available. This is the
 safety net: Engine 1 must never run on Sentinel-2-class imagery, and the
 map must never come back empty just because a trained engine is missing.
 """
+
 import math
 from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
 
+from app.engines import engine2, siamese, spectral
 from app.geo.align import AlignedPair
 from app.geo.vectorize import native_pixel_area_m2
-from app.engines import siamese, spectral, engine2
 
 HIGH_RES_MAX_PIXEL_M = 2.0
 MULTISPECTRAL_MIN_BANDS = 5  # >=5 bands counts as true multispectral regardless of resolution
@@ -49,7 +50,9 @@ def _predict_fn(key: str) -> Callable[[AlignedPair], np.ndarray]:
 
 
 def _engine_name(key: str) -> str:
-    return {"tinycd": siamese.ENGINE_NAME, "engine2": engine2.ENGINE_NAME, "spectral": spectral.ENGINE_NAME}[key]
+    return {"tinycd": siamese.ENGINE_NAME, "engine2": engine2.ENGINE_NAME, "spectral": spectral.ENGINE_NAME}[
+        key
+    ]
 
 
 def _is_available(key: str) -> bool:
@@ -77,7 +80,9 @@ def resolve_engine(aligned: AlignedPair, forced: str = "auto") -> EngineResoluti
 
     # auto: use the rule's choice if available.
     if _is_available(rule_choice):
-        return EngineResolution(rule_choice, _engine_name(rule_choice), "auto", rule_choice, px, fell_back=False)
+        return EngineResolution(
+            rule_choice, _engine_name(rule_choice), "auto", rule_choice, px, fell_back=False
+        )
 
     # Fallback must never cross the resolution boundary the other way: if the
     # rule picked Engine 2 (coarse/multispectral input) and it's unavailable,

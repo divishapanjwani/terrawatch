@@ -1,5 +1,5 @@
 from pyproj import CRS
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Polygon, box
 
 from app.pipeline.priority import apply_hazard_zone, compute_priority
 
@@ -7,8 +7,16 @@ UTM_43N = CRS.from_epsg(32643)  # Wayanad's actual UTM zone
 
 
 class _FakePolygon:
-    def __init__(self, geometry, sev_score=0.5, confidence=0.7, severity="Medium",
-                 change_type="other", population_est=0.0, population_buffer_est=0.0):
+    def __init__(
+        self,
+        geometry,
+        sev_score=0.5,
+        confidence=0.7,
+        severity="Medium",
+        change_type="other",
+        population_est=0.0,
+        population_buffer_est=0.0,
+    ):
         self.geometry = geometry
         self.area_crs = UTM_43N
         self.sev_score = sev_score
@@ -39,6 +47,7 @@ def test_compute_priority_ranks_closer_facility_higher():
     """Two otherwise-identical polygons: the one closer to a hospital
     should score higher and rank #1."""
     from pyproj import Transformer
+
     to_utm = Transformer.from_crs("EPSG:4326", UTM_43N, always_xy=True)
     hx, hy = to_utm.transform(76.16, 11.47)
 
@@ -60,8 +69,11 @@ def test_compute_priority_weights_population():
     p_low_pop = _FakePolygon(_square_at(622000, 1268000), population_est=0.0)
     p_high_pop = _FakePolygon(_square_at(622000, 1268000), population_est=1000.0)
     weights = {
-        "w1_severity": 0.0, "w2_population": 1.0, "w3_facility_proximity": 0.0,
-        "w4_confidence": 0.0, "w5_route_impact": 0.0,
+        "w1_severity": 0.0,
+        "w2_population": 1.0,
+        "w3_facility_proximity": 0.0,
+        "w4_confidence": 0.0,
+        "w5_route_impact": 0.0,
     }
 
     compute_priority([p_low_pop, p_high_pop], {"hospitals": [], "schools": []}, weights=weights)
@@ -101,10 +113,18 @@ def test_prevention_mode_ranks_hazard_zone_new_construction_first():
 
     # Hazard zone in EPSG:4326 covering the "inside" polygon's centroid only.
     from pyproj import Transformer
+
     to_4326 = Transformer.from_crs(UTM_43N, "EPSG:4326", always_xy=True)
     cx, cy = inside.geometry.centroid.x, inside.geometry.centroid.y
     lon, lat = to_4326.transform(cx, cy)
-    zone = Polygon([(lon - 0.01, lat - 0.01), (lon + 0.01, lat - 0.01), (lon + 0.01, lat + 0.01), (lon - 0.01, lat + 0.01)])
+    zone = Polygon(
+        [
+            (lon - 0.01, lat - 0.01),
+            (lon + 0.01, lat - 0.01),
+            (lon + 0.01, lat + 0.01),
+            (lon - 0.01, lat + 0.01),
+        ]
+    )
 
     apply_hazard_zone([inside, outside], zone)
     assert inside.in_hazard_zone is True
@@ -119,6 +139,7 @@ def test_nearest_main_road_and_nearby_facilities():
     should produce a correct nearest_main_road_m and show up in the
     nearby-facilities list, sorted by distance."""
     from pyproj import Transformer
+
     to_4326 = Transformer.from_crs(UTM_43N, "EPSG:4326", always_xy=True)
 
     p = _FakePolygon(_square_at(622000, 1268000))
@@ -131,7 +152,13 @@ def test_nearest_main_road_and_nearby_facilities():
         "hospitals": [],
         "schools": [{"lat": school_lat, "lon": school_lon, "name": "Close School"}],
         "shelters": [],
-        "roads": [{"name": "Test Road", "highway": "primary", "coords": [[road_lon1, road_lat1], [road_lon2, road_lat2]]}],
+        "roads": [
+            {
+                "name": "Test Road",
+                "highway": "primary",
+                "coords": [[road_lon1, road_lat1], [road_lon2, road_lat2]],
+            }
+        ],
     }
 
     compute_priority([p], facilities)
@@ -140,6 +167,7 @@ def test_nearest_main_road_and_nearby_facilities():
     assert p.nearest_main_road_m < 10  # road runs through the polygon's centroid
 
     import json
+
     nearby = json.loads(p.nearby_facilities_json)
     assert any(item["type"] == "school" and item["name"] == "Close School" for item in nearby)
     assert any(item["type"] == "road" and item["name"] == "Test Road" for item in nearby)

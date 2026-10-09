@@ -18,7 +18,6 @@ We use 5 of the 13 bands, matching what app/engines/engine2.py and our own
 Sentinel-2 fetch scripts use: Red (B04), Green (B03), Blue (B02), NIR
 (B08), SWIR (B11).
 """
-import json
 from pathlib import Path
 from typing import Optional
 

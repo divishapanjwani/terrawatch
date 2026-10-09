@@ -2,6 +2,7 @@
 stacked (before bands + after bands + index differences) tensor; output is
 a per-pixel change probability. Kept small (base width 16, 4 levels, ~1.9M
 params) so it trains in a reasonable time on a laptop (MPS or CPU)."""
+
 import torch
 from torch import nn
 

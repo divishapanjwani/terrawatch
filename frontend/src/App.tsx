@@ -1,15 +1,7 @@
 import { useRef, useState } from "react";
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
-import {
-  AlertTriangle,
-  Cpu,
-  Hospital,
-  Landmark,
-  MapPin,
-  Route,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Cpu, Hospital, Landmark, MapPin, Route, X } from "lucide-react";
 import "./styles/tokens.css";
 import "./styles/design-system.css";
 import "./App.css";
@@ -75,7 +67,12 @@ export default function App() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
 
-  const [openSections, setOpenSections] = useState({ analysis: true, engine: true, layers: true, quality: true });
+  const [openSections, setOpenSections] = useState({
+    analysis: true,
+    engine: true,
+    layers: true,
+    quality: true,
+  });
   function toggleSection(key: keyof typeof openSections) {
     setOpenSections((s) => ({ ...s, [key]: !s[key] }));
   }
@@ -94,13 +91,15 @@ export default function App() {
       setState({ phase: "ready", analysis: state.analysis, geojson });
       setSelected((prev) => {
         if (!prev) return prev;
-        const updated = geojson.features.find((f) => String(f.properties?.id) === String(prev.properties?.id));
+        const updated = geojson.features.find(
+          (f) => String(f.properties?.id) === String(prev.properties?.id),
+        );
         return (updated as unknown as MapGeoJSONFeature) ?? prev;
       });
       setHazardZoneStatus(
         in_hazard_zone_count > 0
           ? `${in_hazard_zone_count} new-construction polygon(s) flagged in the hazard zone.`
-          : "No new-construction polygons fall inside this zone."
+          : "No new-construction polygons fall inside this zone.",
       );
     } catch (err) {
       setHazardZoneStatus(`Failed to apply hazard zone: ${(err as Error).message}`);
@@ -140,7 +139,9 @@ export default function App() {
       } else {
         const geojson = await getPolygons(analysis_id);
         setState({ phase: "ready", analysis, geojson });
-        getFacilities(analysis_id).then(setFacilities).catch(() => setFacilities(null));
+        getFacilities(analysis_id)
+          .then(setFacilities)
+          .catch(() => setFacilities(null));
       }
     } catch (err) {
       setState({ phase: "error", message: (err as Error).message });
@@ -173,7 +174,7 @@ export default function App() {
     } catch (err) {
       setDemoLoading(false);
       setDemoError(
-        `${(err as Error).message} Place wayanad_before.tif/wayanad_after.tif in frontend/public/demo/, or use "Upload your own GeoTIFFs".`
+        `${(err as Error).message} Place wayanad_before.tif/wayanad_after.tif in frontend/public/demo/, or use "Upload your own GeoTIFFs".`,
       );
     }
   }
@@ -187,14 +188,18 @@ export default function App() {
     setPage(p);
     if (p === "analysis") {
       setOpenSections((s) => ({ ...s, analysis: true }));
-      requestAnimationFrame(() => analysisSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      requestAnimationFrame(() =>
+        analysisSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
     }
   }
 
   function handleJumpToLayers() {
     setPage("analysis");
     setOpenSections((s) => ({ ...s, layers: true }));
-    requestAnimationFrame(() => layersSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() =>
+      layersSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
   }
 
   const ready = state.phase === "ready" ? state : null;
@@ -205,7 +210,15 @@ export default function App() {
     : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--color-bg)" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        width: "100vw",
+        background: "var(--color-bg)",
+      }}
+    >
       <TopBar
         analysisName={analysisName}
         analysis={ready?.analysis ?? null}
@@ -247,39 +260,75 @@ export default function App() {
                 <button
                   className="ts-btn ts-btn-primary"
                   onClick={handleSubmit}
-                  disabled={!beforeFile || !afterFile || state.phase === "uploading" || state.phase === "processing"}
+                  disabled={
+                    !beforeFile || !afterFile || state.phase === "uploading" || state.phase === "processing"
+                  }
                   style={{ width: "100%", marginTop: "4px" }}
                 >
-                  {state.phase === "uploading" || state.phase === "processing" ? "Processing…" : "Run analysis"}
+                  {state.phase === "uploading" || state.phase === "processing"
+                    ? "Processing…"
+                    : "Run analysis"}
                 </button>
 
                 {state.phase === "error" && (
-                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-danger)", marginTop: "10px" }}>
+                  <p
+                    style={{
+                      fontSize: "var(--font-size-xs)",
+                      color: "var(--color-danger)",
+                      marginTop: "10px",
+                    }}
+                  >
                     {state.message}
                   </p>
                 )}
 
                 {ready && (
                   <div style={{ marginTop: "12px" }}>
-                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: 0 }}>
+                    <p
+                      style={{
+                        fontSize: "var(--font-size-xs)",
+                        color: "var(--color-text-secondary)",
+                        margin: 0,
+                      }}
+                    >
                       {ready.analysis.summary_line}
                     </p>
-                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", marginTop: "4px" }}>
+                    <p
+                      style={{
+                        fontSize: "var(--font-size-xs)",
+                        color: "var(--color-text-faint)",
+                        marginTop: "4px",
+                      }}
+                    >
                       Pixel size ~<span className="mono">{ready.analysis.pixel_size_m?.toFixed(1)}</span> m
-                      {ready.analysis.engine_fell_back && (
-                        <> — fell back to spectral baseline</>
-                      )}
+                      {ready.analysis.engine_fell_back && <> — fell back to spectral baseline</>}
                     </p>
                   </div>
                 )}
               </CollapsibleSection>
 
-              <CollapsibleSection title="Engine" open={openSections.engine} onToggle={() => toggleSection("engine")}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "var(--color-text-secondary)" }}>
+              <CollapsibleSection
+                title="Engine"
+                open={openSections.engine}
+                onToggle={() => toggleSection("engine")}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "8px",
+                    color: "var(--color-text-secondary)",
+                  }}
+                >
                   <Cpu size={13} />
                   <span style={{ fontSize: "var(--font-size-xs)" }}>Detection engine</span>
                 </div>
-                <select className="ts-select" value={engine} onChange={(e) => setEngine(e.target.value as EngineChoice)}>
+                <select
+                  className="ts-select"
+                  value={engine}
+                  onChange={(e) => setEngine(e.target.value as EngineChoice)}
+                >
                   {ENGINE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -295,7 +344,12 @@ export default function App() {
                   open={openSections.layers}
                   onToggle={() => toggleSection("layers")}
                 >
-                  <LayerRow label="Rejected changes" count={ready.analysis.rejected_count} checked={showRejected} onChange={setShowRejected} />
+                  <LayerRow
+                    label="Rejected changes"
+                    count={ready.analysis.rejected_count}
+                    checked={showRejected}
+                    onChange={setShowRejected}
+                  />
                   <LayerRow
                     label="Population"
                     checked={showPopulation}
@@ -304,8 +358,18 @@ export default function App() {
                     note={!ready.analysis.population_available ? "no data" : undefined}
                     color="var(--color-severity-medium)"
                   />
-                  <LayerRow label="Facilities" checked={showFacilities} onChange={setShowFacilities} color="var(--color-severity-high)" />
-                  <LayerRow label="Roads" checked={showRoads} onChange={setShowRoads} color="var(--color-text-secondary)" />
+                  <LayerRow
+                    label="Facilities"
+                    checked={showFacilities}
+                    onChange={setShowFacilities}
+                    color="var(--color-severity-high)"
+                  />
+                  <LayerRow
+                    label="Roads"
+                    checked={showRoads}
+                    onChange={setShowRoads}
+                    color="var(--color-text-secondary)"
+                  />
 
                   {mode === "prevention" && (
                     <div style={{ marginTop: "14px" }}>
@@ -317,7 +381,14 @@ export default function App() {
                         {drawMode ? "Cancel drawing" : hazardZone ? "Redraw hazard zone" : "Draw hazard zone"}
                       </button>
                       {hazardZoneStatus && (
-                        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "8px", lineHeight: 1.4 }}>
+                        <p
+                          style={{
+                            fontSize: "var(--font-size-xs)",
+                            color: "var(--color-text-secondary)",
+                            marginTop: "8px",
+                            lineHeight: 1.4,
+                          }}
+                        >
                           {hazardZoneStatus}
                         </p>
                       )}
@@ -327,7 +398,11 @@ export default function App() {
               )}
 
               {ready?.analysis.quality_report && (
-                <CollapsibleSection title="Quality report" open={openSections.quality} onToggle={() => toggleSection("quality")}>
+                <CollapsibleSection
+                  title="Quality report"
+                  open={openSections.quality}
+                  onToggle={() => toggleSection("quality")}
+                >
                   {ready.analysis.quality_report.warnings.length > 0 && (
                     <div
                       style={{
@@ -351,28 +426,66 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  <QualityRow label="Cloud (before)" value={`${ready.analysis.quality_report.before_cloud_pct.toFixed(1)}%`} warn={ready.analysis.quality_report.before_cloud_pct > 20} />
-                  <QualityRow label="Cloud (after)" value={`${ready.analysis.quality_report.after_cloud_pct.toFixed(1)}%`} warn={ready.analysis.quality_report.after_cloud_pct > 20} />
+                  <QualityRow
+                    label="Cloud (before)"
+                    value={`${ready.analysis.quality_report.before_cloud_pct.toFixed(1)}%`}
+                    warn={ready.analysis.quality_report.before_cloud_pct > 20}
+                  />
+                  <QualityRow
+                    label="Cloud (after)"
+                    value={`${ready.analysis.quality_report.after_cloud_pct.toFixed(1)}%`}
+                    warn={ready.analysis.quality_report.after_cloud_pct > 20}
+                  />
                   <QualityRow label="Cloud method" value={ready.analysis.quality_report.cloud_method} />
-                  <QualityRow label="Misalignment" value={`${ready.analysis.quality_report.misalignment_px.toFixed(1)} px`} warn={ready.analysis.quality_report.misalignment_px > 1} />
-                  <QualityRow label="Resolution" value={`${ready.analysis.quality_report.resolution_m.toFixed(1)} m`} />
+                  <QualityRow
+                    label="Misalignment"
+                    value={`${ready.analysis.quality_report.misalignment_px.toFixed(1)} px`}
+                    warn={ready.analysis.quality_report.misalignment_px > 1}
+                  />
+                  <QualityRow
+                    label="Resolution"
+                    value={`${ready.analysis.quality_report.resolution_m.toFixed(1)} m`}
+                  />
                   <QualityRow label="Bands" value={String(ready.analysis.quality_report.band_count)} />
                 </CollapsibleSection>
               )}
             </aside>
 
-            <main style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <main
+              style={{
+                flex: 1,
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
               {state.phase === "empty" && (
-                <Hero onLoadDemo={handleLoadDemo} onUploadOwn={handleUploadOwnClick} demoLoading={demoLoading} demoError={demoError} />
+                <Hero
+                  onLoadDemo={handleLoadDemo}
+                  onUploadOwn={handleUploadOwnClick}
+                  demoLoading={demoLoading}
+                  demoError={demoError}
+                />
               )}
               {(state.phase === "uploading" || state.phase === "processing") && (
-                <ProcessingCard step={state.phase === "processing" ? state.step : "validating"} steps={state.phase === "processing" ? state.steps : []} />
+                <ProcessingCard
+                  step={state.phase === "processing" ? state.step : "validating"}
+                  steps={state.phase === "processing" ? state.steps : []}
+                />
               )}
               {state.phase === "error" && (
-                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div className="ts-card" style={{ padding: "24px", maxWidth: "400px", textAlign: "center" }}>
+                <div
+                  style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <div
+                    className="ts-card"
+                    style={{ padding: "24px", maxWidth: "400px", textAlign: "center" }}
+                  >
                     <AlertTriangle size={20} color="var(--color-danger)" style={{ marginBottom: "8px" }} />
-                    <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text)" }}>{state.message}</p>
+                    <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text)" }}>
+                      {state.message}
+                    </p>
                   </div>
                 </div>
               )}
@@ -381,32 +494,45 @@ export default function App() {
                 <>
                   <KpiStrip analysis={ready.analysis} geojson={ready.geojson} />
                   <div style={{ flex: 1, display: "flex", minHeight: 0, padding: "0 16px 16px" }}>
-                    <div style={{ flex: 1, position: "relative", minWidth: 0, borderRadius: "var(--radius-md)", overflow: "hidden", border: "1px solid var(--color-border)" }}>
+                    <div
+                      style={{
+                        flex: 1,
+                        position: "relative",
+                        minWidth: 0,
+                        borderRadius: "var(--radius-md)",
+                        overflow: "hidden",
+                        border: "1px solid var(--color-border)",
+                      }}
+                    >
                       {ready.analysis.bounds && (
-                      <CompareMap
-                        beforeUrl={imageryUrl(ready.analysis.id, "before")}
-                        afterUrl={imageryUrl(ready.analysis.id, "after")}
-                        bounds={ready.analysis.bounds}
-                        geojson={ready.geojson}
-                        selectedId={selected ? String(selected.properties?.id) : null}
-                        zoomToId={zoomToId}
-                        hoveredId={hoveredId}
-                        onPolygonClick={(f) => {
-                          setSelected(f);
-                          setRightPanelOpen(true);
-                          setRightPanelTab("details");
-                        }}
-                        onPolygonHover={setHoveredId}
-                        showRejected={showRejected}
-                        facilities={facilities}
-                        showFacilities={showFacilities}
-                        showRoads={showRoads}
-                        populationUrl={ready.analysis.population_available ? populationOverlayUrl(ready.analysis.id) : null}
-                        showPopulation={showPopulation}
-                        drawMode={drawMode}
-                        onDrawComplete={handleDrawComplete}
-                        hazardZone={hazardZone}
-                      />
+                        <CompareMap
+                          beforeUrl={imageryUrl(ready.analysis.id, "before")}
+                          afterUrl={imageryUrl(ready.analysis.id, "after")}
+                          bounds={ready.analysis.bounds}
+                          geojson={ready.geojson}
+                          selectedId={selected ? String(selected.properties?.id) : null}
+                          zoomToId={zoomToId}
+                          hoveredId={hoveredId}
+                          onPolygonClick={(f) => {
+                            setSelected(f);
+                            setRightPanelOpen(true);
+                            setRightPanelTab("details");
+                          }}
+                          onPolygonHover={setHoveredId}
+                          showRejected={showRejected}
+                          facilities={facilities}
+                          showFacilities={showFacilities}
+                          showRoads={showRoads}
+                          populationUrl={
+                            ready.analysis.population_available
+                              ? populationOverlayUrl(ready.analysis.id)
+                              : null
+                          }
+                          showPopulation={showPopulation}
+                          drawMode={drawMode}
+                          onDrawComplete={handleDrawComplete}
+                          hazardZone={hazardZone}
+                        />
                       )}
                     </div>
 
@@ -435,13 +561,31 @@ export default function App() {
                       {rightPanelOpen && (
                         <div
                           className="ts-card ts-slide-in-right"
-                          style={{ width: "340px", marginLeft: "8px", display: "flex", flexDirection: "column", overflow: "hidden" }}
+                          style={{
+                            width: "340px",
+                            marginLeft: "8px",
+                            display: "flex",
+                            flexDirection: "column",
+                            overflow: "hidden",
+                          }}
                         >
-                          <div style={{ display: "flex", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
-                            <TabButton active={rightPanelTab === "priority"} onClick={() => setRightPanelTab("priority")}>
+                          <div
+                            style={{
+                              display: "flex",
+                              borderBottom: "1px solid var(--color-border)",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <TabButton
+                              active={rightPanelTab === "priority"}
+                              onClick={() => setRightPanelTab("priority")}
+                            >
                               Priority queue
                             </TabButton>
-                            <TabButton active={rightPanelTab === "details"} onClick={() => setRightPanelTab("details")}>
+                            <TabButton
+                              active={rightPanelTab === "details"}
+                              onClick={() => setRightPanelTab("details")}
+                            >
                               Change details
                             </TabButton>
                           </div>
@@ -457,7 +601,14 @@ export default function App() {
                                   }}
                                 />
                               ) : (
-                                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--color-text-faint)", fontSize: "var(--font-size-xs)" }}>
+                                <div
+                                  style={{
+                                    padding: "32px 16px",
+                                    textAlign: "center",
+                                    color: "var(--color-text-faint)",
+                                    fontSize: "var(--font-size-xs)",
+                                  }}
+                                >
                                   Select a change on the map or priority list.
                                 </div>
                               )
@@ -485,7 +636,15 @@ export default function App() {
   );
 }
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       onClick={onClick}

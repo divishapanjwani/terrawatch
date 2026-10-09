@@ -11,6 +11,7 @@ Usage:
 
 Requires OSCD downloaded first — see HANDOFF.md.
 """
+
 import argparse
 import sys
 import time
@@ -22,9 +23,9 @@ from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.oscd_data import TRAIN_CITIES, TEST_CITIES, load_oscd_city, available  # noqa: E402
-from app.engines.engine2 import compute_features, IN_CHANNELS, BASE_WIDTH, WEIGHTS_PATH  # noqa: E402
+from app.engines.engine2 import BASE_WIDTH, IN_CHANNELS, WEIGHTS_PATH, compute_features  # noqa: E402
 from app.engines.unet_model import SmallUNet, count_params  # noqa: E402
+from scripts.oscd_data import TEST_CITIES, TRAIN_CITIES, available, load_oscd_city  # noqa: E402
 
 
 def pick_device() -> torch.device:
@@ -39,8 +40,10 @@ def load_scenes(base_dir: Path, cities: list[str], split: str):
         before, after, label = load_oscd_city(base_dir, city, split)
         features = compute_features(before, after)  # (14, H, W)
         scenes.append({"city": city, "features": features, "label": label.astype(np.float32)})
-        print(f"  loaded {city}: {features.shape[1]}x{features.shape[2]}, "
-              f"{label.mean() * 100:.2f}% change pixels")
+        print(
+            f"  loaded {city}: {features.shape[1]}x{features.shape[2]}, "
+            f"{label.mean() * 100:.2f}% change pixels"
+        )
     return scenes
 
 
@@ -83,9 +86,9 @@ def sample_patch(scenes, patch_size: int, positive_bias: float, rng: np.random.G
 def make_batch(scenes, batch_size, patch_size, positive_bias, rng):
     fs, ls = [], []
     for _ in range(batch_size):
-        f, l = sample_patch(scenes, patch_size, positive_bias, rng)
+        f, label = sample_patch(scenes, patch_size, positive_bias, rng)
         fs.append(f)
-        ls.append(l)
+        ls.append(label)
     return np.stack(fs), np.stack(ls)
 
 
@@ -121,11 +124,19 @@ def main():
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--patch-size", type=int, default=96)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--positive-bias", type=float, default=0.7,
-                         help="fraction of patches sampled centered on a change pixel")
+    parser.add_argument(
+        "--positive-bias",
+        type=float,
+        default=0.7,
+        help="fraction of patches sampled centered on a change pixel",
+    )
     parser.add_argument("--eval-every", type=int, default=500)
-    parser.add_argument("--eval-cities", type=int, default=3,
-                         help="how many OSCD test cities to use for in-training progress checks")
+    parser.add_argument(
+        "--eval-cities",
+        type=int,
+        default=3,
+        help="how many OSCD test cities to use for in-training progress checks",
+    )
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 

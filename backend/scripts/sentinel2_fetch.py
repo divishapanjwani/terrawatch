@@ -14,6 +14,7 @@ co-registration, just band-to-band within one scene instead of
 before-to-after). SCL is categorical, so it's resampled with
 nearest-neighbor, not bilinear, to avoid inventing fractional class codes.
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -21,8 +22,8 @@ import planetary_computer
 import pystac_client
 import rasterio
 import rasterio.warp
-from rasterio.windows import from_bounds
 from rasterio.enums import Resampling
+from rasterio.windows import from_bounds
 
 BANDS = ["B04", "B03", "B02", "B08", "B11", "SCL"]  # R, G, B, NIR, SWIR, SCL
 CATEGORICAL_BANDS = {"SCL"}

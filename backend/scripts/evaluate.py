@@ -21,6 +21,7 @@ actually helps/hurts precision and recall.
 Results are upserted (by engine+dataset+stage) into data/eval_results.json,
 read by GET /api/metrics and the frontend Accuracy page.
 """
+
 import argparse
 import json
 import sys
@@ -31,12 +32,16 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.engines import siamese, engine2, spectral  # noqa: E402
+from app.engines import engine2, siamese, spectral  # noqa: E402
 from app.pipeline.ablation import ablation_masks  # noqa: E402
 
 RESULTS_PATH = Path(__file__).resolve().parent.parent / "data" / "eval_results.json"
 ABLATION_STAGES = ["raw", "morphology", "false_alarm_filter"]
-STAGE_LABELS = {"raw": "raw model", "morphology": "+ morphology", "false_alarm_filter": "+ false-alarm filter"}
+STAGE_LABELS = {
+    "raw": "raw model",
+    "morphology": "+ morphology",
+    "false_alarm_filter": "+ false-alarm filter",
+}
 
 
 def load_rgb(path: Path) -> np.ndarray:
@@ -70,8 +75,13 @@ def _upsert_result(record: dict) -> None:
         results = json.loads(RESULTS_PATH.read_text()).get("results", [])
     stage = record.get("stage", "full")
     results = [
-        r for r in results
-        if not (r["engine"] == record["engine"] and r["dataset"] == record["dataset"] and r.get("stage", "full") == stage)
+        r
+        for r in results
+        if not (
+            r["engine"] == record["engine"]
+            and r["dataset"] == record["dataset"]
+            and r.get("stage", "full") == stage
+        )
     ]
     results.append(record)
     RESULTS_PATH.write_text(json.dumps({"results": results}, indent=2))
@@ -87,7 +97,13 @@ def _aggregate(per_image_metrics: list[dict]) -> dict:
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     accuracy = (total_tp + total_tn) / max(1, total_tp + total_tn + total_fp + total_fn)
     fpr = total_fp / (total_fp + total_tn) if total_fp + total_tn else 0.0
-    return {"precision": precision, "recall": recall, "f1": f1, "accuracy": accuracy, "false_positive_rate": fpr}
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "accuracy": accuracy,
+        "false_positive_rate": fpr,
+    }
 
 
 LEVIRCD_PIXEL_SIZE_M = 0.5
@@ -141,8 +157,10 @@ def run_levircd(args) -> None:
         _upsert_result(record)
         label_str = STAGE_LABELS.get(s, s)
         print(f"{siamese.ENGINE_NAME} [{label_str}] on {len(names)} LEVIR-CD test images:")
-        print(f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
-              f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}")
+        print(
+            f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
+            f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}"
+        )
     print(f"\n({elapsed:.1f}s total) Results written to {RESULTS_PATH}")
 
 
@@ -200,8 +218,10 @@ def run_oscd(args) -> None:
         _upsert_result(record)
         label_str = STAGE_LABELS.get(s, s)
         print(f"{engine_module.ENGINE_NAME} [{label_str}] on {len(pairs)} OSCD test pairs:")
-        print(f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
-              f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}")
+        print(
+            f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
+            f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}"
+        )
     print(f"\n({elapsed:.1f}s total) Results written to {RESULTS_PATH}")
 
 

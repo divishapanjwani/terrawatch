@@ -24,6 +24,7 @@ only "Medium"):
   versa). A change is severe if it is either very LARGE or very INTENSE;
   it shouldn't need to be both at once to earn High.
 """
+
 import math
 
 from app.config import SEVERITY_HIGH, SEVERITY_MEDIUM

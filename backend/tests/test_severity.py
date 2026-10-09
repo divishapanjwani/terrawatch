@@ -1,7 +1,6 @@
 import pytest
 
-from app.config import SEVERITY_HIGH, SEVERITY_MEDIUM
-from app.pipeline.severity import score_severity, _normalize
+from app.pipeline.severity import _normalize, score_severity
 
 
 class _FakePolygon:

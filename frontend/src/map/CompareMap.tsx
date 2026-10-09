@@ -23,7 +23,10 @@ const FACILITY_COLOR_EXPR = [
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ] as any;
 
-function facilitiesToGeoJSON(facilities: FacilitiesData): { points: FeatureCollection; lines: FeatureCollection } {
+function facilitiesToGeoJSON(facilities: FacilitiesData): {
+  points: FeatureCollection;
+  lines: FeatureCollection;
+} {
   const points: Feature[] = [
     ...facilities.hospitals.map((f) => ({
       type: "Feature" as const,
@@ -46,7 +49,10 @@ function facilitiesToGeoJSON(facilities: FacilitiesData): { points: FeatureColle
     properties: { name: r.name, highway: r.highway },
     geometry: { type: "LineString" as const, coordinates: r.coords },
   }));
-  return { points: { type: "FeatureCollection", features: points }, lines: { type: "FeatureCollection", features: lines } };
+  return {
+    points: { type: "FeatureCollection", features: points },
+    lines: { type: "FeatureCollection", features: lines },
+  };
 }
 
 function addFacilitiesLayers(map: MLMap, facilities: FacilitiesData) {
@@ -131,7 +137,10 @@ const SEVERITY_COLOR_EXPR: any = [
 // Flattens a Polygon/MultiPolygon's coordinates into a [west, south, east,
 // north] bbox -- no turf dependency needed for this one lookup.
 function geometryBbox(geometry: GeoJSON.Geometry): [number, number, number, number] | null {
-  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  let west = Infinity,
+    south = Infinity,
+    east = -Infinity,
+    north = -Infinity;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visit = (coords: any): void => {
     if (typeof coords[0] === "number") {
@@ -158,7 +167,9 @@ function boundsToCoords(b: Bounds): [[number, number], [number, number], [number
   ];
 }
 
-const NICE_SCALE_DISTANCES_M = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000];
+const NICE_SCALE_DISTANCES_M = [
+  5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000,
+];
 
 function computeScaleBar(zoom: number, lat: number, maxWidthPx = 100): { widthPx: number; label: string } {
   const metersPerPixel = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
@@ -652,8 +663,11 @@ export default function CompareMap({
     const [west, south, east, north] = bbox;
     for (const map of [mapsRef.current.before, mapsRef.current.after]) {
       map.fitBounds(
-        [[west, south], [east, north]],
-        { padding: 80, maxZoom: 17, duration: 600 }
+        [
+          [west, south],
+          [east, north],
+        ],
+        { padding: 80, maxZoom: 17, duration: 600 },
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -767,10 +781,32 @@ export default function CompareMap({
         </div>
       </div>
 
-      <div className="ts-float" style={{ position: "absolute", top: 12, left: 12, padding: "5px 10px", fontSize: "var(--font-size-xs)", zIndex: 5, fontWeight: 500 }}>
+      <div
+        className="ts-float"
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 12,
+          padding: "5px 10px",
+          fontSize: "var(--font-size-xs)",
+          zIndex: 5,
+          fontWeight: 500,
+        }}
+      >
         {beforeLabel}
       </div>
-      <div className="ts-float" style={{ position: "absolute", top: 12, right: 12, padding: "5px 10px", fontSize: "var(--font-size-xs)", zIndex: 5, fontWeight: 500 }}>
+      <div
+        className="ts-float"
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 12,
+          padding: "5px 10px",
+          fontSize: "var(--font-size-xs)",
+          zIndex: 5,
+          fontWeight: 500,
+        }}
+      >
         {afterLabel}
       </div>
 
@@ -788,7 +824,16 @@ export default function CompareMap({
           gap: "8px",
         }}
       >
-        <div className="ts-float" style={{ padding: "6px 10px", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+        <div
+          className="ts-float"
+          style={{
+            padding: "6px 10px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "4px",
+          }}
+        >
           <div
             style={{
               width: `${computeScaleBar(viewState.zoom, viewState.lat).widthPx}px`,
@@ -803,7 +848,10 @@ export default function CompareMap({
           </span>
         </div>
         {cursorLngLat && (
-          <div className="ts-float mono" style={{ padding: "4px 8px", fontSize: "10px", color: "var(--color-text-secondary)" }}>
+          <div
+            className="ts-float mono"
+            style={{ padding: "4px 8px", fontSize: "10px", color: "var(--color-text-secondary)" }}
+          >
             {cursorLngLat.lat.toFixed(5)}, {cursorLngLat.lng.toFixed(5)}
           </div>
         )}
@@ -825,14 +873,31 @@ export default function CompareMap({
         <button
           onClick={() => mapsRef.current?.after.zoomIn({ duration: 200 })}
           aria-label="Zoom in"
-          style={{ width: "28px", height: "28px", border: "none", borderBottom: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text)", cursor: "pointer", fontSize: "15px" }}
+          style={{
+            width: "28px",
+            height: "28px",
+            border: "none",
+            borderBottom: "1px solid var(--color-border)",
+            background: "transparent",
+            color: "var(--color-text)",
+            cursor: "pointer",
+            fontSize: "15px",
+          }}
         >
           +
         </button>
         <button
           onClick={() => mapsRef.current?.after.zoomOut({ duration: 200 })}
           aria-label="Zoom out"
-          style={{ width: "28px", height: "28px", border: "none", background: "transparent", color: "var(--color-text)", cursor: "pointer", fontSize: "15px" }}
+          style={{
+            width: "28px",
+            height: "28px",
+            border: "none",
+            background: "transparent",
+            color: "var(--color-text)",
+            cursor: "pointer",
+            fontSize: "15px",
+          }}
         >
           −
         </button>
@@ -855,9 +920,17 @@ export default function CompareMap({
           }}
         >
           <span style={{ color: "var(--color-text-secondary)" }}>
-            Click the map to add points (<span className="mono" style={{ color: "var(--color-text)" }}>{drawPoints.length}</span> so far). Need at least 3.
+            Click the map to add points (
+            <span className="mono" style={{ color: "var(--color-text)" }}>
+              {drawPoints.length}
+            </span>{" "}
+            so far). Need at least 3.
           </span>
-          <button onClick={finishDrawing} disabled={drawPoints.length < 3} className="ts-btn ts-btn-primary ts-btn-sm">
+          <button
+            onClick={finishDrawing}
+            disabled={drawPoints.length < 3}
+            className="ts-btn ts-btn-primary ts-btn-sm"
+          >
             Finish zone
           </button>
           <button onClick={cancelDrawing} className="ts-btn ts-btn-sm">

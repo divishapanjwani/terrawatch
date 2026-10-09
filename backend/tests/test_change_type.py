@@ -1,5 +1,5 @@
 from app import config
-from app.pipeline.change_type import classify_change_type, apply_change_types
+from app.pipeline.change_type import apply_change_types, classify_change_type
 
 
 class _FakePolygon:
@@ -19,9 +19,13 @@ def test_rgb_only_input_is_unavailable():
 
 
 def test_flooding_detected_from_ndwi():
-    p = _FakePolygon(extra={
-        "ndwi_delta": config.FLOODING_NDWI_THRESHOLD + 0.1, "ndvi_delta": 0.0, "ndbi_delta": 0.0,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndwi_delta": config.FLOODING_NDWI_THRESHOLD + 0.1,
+            "ndvi_delta": 0.0,
+            "ndbi_delta": 0.0,
+        }
+    )
     change_type, rule = classify_change_type(p, band_count=4)
     assert change_type == "flooding"
     assert "NDWI" in rule
@@ -77,35 +81,48 @@ def test_new_construction_area_cap():
     construction footprints are small and local."""
     p = _FakePolygon(
         area_m2=config.NEW_CONSTRUCTION_MAX_AREA_M2 + 1000,
-        extra={"ndwi_delta": 0.0, "ndvi_delta": 0.0, "ndbi_delta": config.NEW_CONSTRUCTION_NDBI_THRESHOLD + 0.05},
+        extra={
+            "ndwi_delta": 0.0,
+            "ndvi_delta": 0.0,
+            "ndbi_delta": config.NEW_CONSTRUCTION_NDBI_THRESHOLD + 0.05,
+        },
     )
     change_type, _ = classify_change_type(p, band_count=5)
     assert change_type != "new_construction"
 
 
 def test_new_construction_detected():
-    p = _FakePolygon(extra={
-        "ndwi_delta": 0.0, "ndvi_delta": 0.0,
-        "ndbi_delta": config.NEW_CONSTRUCTION_NDBI_THRESHOLD + 0.05,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndwi_delta": 0.0,
+            "ndvi_delta": 0.0,
+            "ndbi_delta": config.NEW_CONSTRUCTION_NDBI_THRESHOLD + 0.05,
+        }
+    )
     change_type, rule = classify_change_type(p, band_count=5)
     assert change_type == "new_construction"
 
 
 def test_structure_lost_detected():
-    p = _FakePolygon(extra={
-        "ndwi_delta": 0.0, "ndvi_delta": 0.0,
-        "ndbi_delta": config.STRUCTURE_LOST_NDBI_THRESHOLD - 0.05,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndwi_delta": 0.0,
+            "ndvi_delta": 0.0,
+            "ndbi_delta": config.STRUCTURE_LOST_NDBI_THRESHOLD - 0.05,
+        }
+    )
     change_type, rule = classify_change_type(p, band_count=5)
     assert change_type == "structure_lost"
 
 
 def test_vegetation_loss_fallback():
-    p = _FakePolygon(extra={
-        "ndwi_delta": 0.0, "ndbi_delta": 0.0,
-        "ndvi_delta": config.VEGETATION_LOSS_NDVI_THRESHOLD - 0.02,
-    })
+    p = _FakePolygon(
+        extra={
+            "ndwi_delta": 0.0,
+            "ndbi_delta": 0.0,
+            "ndvi_delta": config.VEGETATION_LOSS_NDVI_THRESHOLD - 0.02,
+        }
+    )
     change_type, rule = classify_change_type(p, band_count=4)
     assert change_type == "vegetation_loss"
 

@@ -17,12 +17,13 @@ in the driest pre-monsoon window (Jan-Apr 2024); "after" is searched
 starting the day of the event through the following months since monsoon
 cloud cover may delay the first clear post-event scene.
 """
+
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.sentinel2_fetch import open_catalog, find_scene, save_clip  # noqa: E402
+from scripts.sentinel2_fetch import find_scene, open_catalog, save_clip  # noqa: E402
 
 BBOX = (76.12, 11.44, 76.18, 11.51)
 BEFORE_DATE = "2024-01-01/2024-04-30"

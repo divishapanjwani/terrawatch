@@ -6,16 +6,17 @@ Area is always computed in a projected (meters) CRS: the native CRS if it's
 already projected, otherwise the correct UTM zone for the scene (resolved
 via pyproj). Centroids are always stored as EPSG:4326 lat/lon.
 """
+
 import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
 import rasterio
+from pyproj import Transformer
 from rasterio.crs import CRS
 from rasterio.features import shapes as rio_shapes
-from rasterio.warp import calculate_default_transform, reproject, Resampling
-from pyproj import Transformer
+from rasterio.warp import Resampling, calculate_default_transform, reproject
 from shapely.geometry import shape
 from skimage.measure import label as cc_label
 
@@ -81,7 +82,8 @@ def compute_bounds_4326(aligned: AlignedPair) -> tuple:
     used both for area-CRS resolution below and for the OSM facility
     lookup in app/impact/facilities.py."""
     return rasterio.warp.transform_bounds(
-        aligned.crs, "EPSG:4326",
+        aligned.crs,
+        "EPSG:4326",
         *rasterio.transform.array_bounds(aligned.height, aligned.width, aligned.transform),
     )
 
@@ -89,7 +91,6 @@ def compute_bounds_4326(aligned: AlignedPair) -> tuple:
 def resolve_area_crs(crs: CRS, bounds) -> CRS:
     if crs.is_projected:
         return crs
-    from pyproj import CRS as PyprojCRS
     from pyproj.aoi import AreaOfInterest
     from pyproj.database import query_utm_crs_info
 
@@ -97,8 +98,10 @@ def resolve_area_crs(crs: CRS, bounds) -> CRS:
     utm_list = query_utm_crs_info(
         datum_name="WGS 84",
         area_of_interest=AreaOfInterest(
-            west_lon_degree=west, south_lat_degree=south,
-            east_lon_degree=east, north_lat_degree=north,
+            west_lon_degree=west,
+            south_lat_degree=south,
+            east_lon_degree=east,
+            north_lat_degree=north,
         ),
     )
     if not utm_list:
@@ -110,9 +113,7 @@ def _to_area_grid(array: np.ndarray, native_crs, native_transform, w, h, area_cr
     if area_crs == native_crs:
         return array, native_transform, w, h
     bounds = rasterio.transform.array_bounds(h, w, native_transform)
-    dst_transform, dst_w, dst_h = calculate_default_transform(
-        native_crs, area_crs, w, h, *bounds
-    )
+    dst_transform, dst_w, dst_h = calculate_default_transform(native_crs, area_crs, w, h, *bounds)
     dst = np.zeros((dst_h, dst_w), dtype=array.dtype)
     reproject(
         source=array,
@@ -146,24 +147,44 @@ def vectorize(
     area_crs = resolve_area_crs(aligned.crs, native_bounds_4326)
 
     mask_area, transform_area, w_area, h_area = _to_area_grid(
-        binary_mask.astype(np.uint8), aligned.crs, aligned.transform,
-        aligned.width, aligned.height, area_crs, Resampling.nearest,
+        binary_mask.astype(np.uint8),
+        aligned.crs,
+        aligned.transform,
+        aligned.width,
+        aligned.height,
+        area_crs,
+        Resampling.nearest,
     )
     mask_area = mask_area.astype(bool)
     prob_area, _, _, _ = _to_area_grid(
-        prob_map.astype(np.float32), aligned.crs, aligned.transform,
-        aligned.width, aligned.height, area_crs, Resampling.bilinear,
+        prob_map.astype(np.float32),
+        aligned.crs,
+        aligned.transform,
+        aligned.width,
+        aligned.height,
+        area_crs,
+        Resampling.bilinear,
     )
     magnitude_area, _, _, _ = _to_area_grid(
-        magnitude_map.astype(np.float32), aligned.crs, aligned.transform,
-        aligned.width, aligned.height, area_crs, Resampling.bilinear,
+        magnitude_map.astype(np.float32),
+        aligned.crs,
+        aligned.transform,
+        aligned.width,
+        aligned.height,
+        area_crs,
+        Resampling.bilinear,
     )
 
     extra_area = {}
     for name, (arr, resampling) in extra_maps.items():
         extra_area[name], _, _, _ = _to_area_grid(
-            arr.astype(np.float32), aligned.crs, aligned.transform,
-            aligned.width, aligned.height, area_crs, resampling,
+            arr.astype(np.float32),
+            aligned.crs,
+            aligned.transform,
+            aligned.width,
+            aligned.height,
+            area_crs,
+            resampling,
         )
 
     labels = cc_label(mask_area, connectivity=1)

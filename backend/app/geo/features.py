@@ -7,10 +7,11 @@ Band convention (matches engine2.py): index 0=R, 1=G, 2=B, 3=NIR, 4=SWIR.
 Indices that need a band beyond what's available return None -- callers
 must treat that as "unavailable", not zero.
 """
+
 from typing import Optional
 
 import numpy as np
-from scipy.ndimage import sobel, binary_dilation
+from scipy.ndimage import binary_dilation, sobel
 
 EPS = 1e-6
 
