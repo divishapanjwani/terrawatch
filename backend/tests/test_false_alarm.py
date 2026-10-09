@@ -1,4 +1,3 @@
-
 from app import config
 from app.pipeline.false_alarm import available_checks, classify
 
