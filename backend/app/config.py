@@ -110,6 +110,32 @@ STRUCTURE_LOST_NDBI_THRESHOLD = -0.08
 LANDSLIDE_NDVI_THRESHOLD = -0.15
 LANDSLIDE_NDBI_CEILING = 0.05
 LANDSLIDE_MIN_AREA_M2 = 500.0
+
+# Loose landslide path: bare soil/rock/debris exposed by a real landslide
+# can raise NDBI into new-construction range (a known remote-sensing
+# confusion -- SWIR/NIR ratio doesn't cleanly separate "bare ground" from
+# "built-up"; see Gotcha #11 in HANDOFF.md) and the NDVI drop can land
+# short of LANDSLIDE_NDVI_THRESHOLD if some ground cover remains amid the
+# debris. Verified against the real Wayanad landslide polygon (ΔNDVI
+# -0.13, ΔNDBI +0.085, texture_change_frac 0.47, 1.56M m²), which the
+# strict rule above misses and new_construction's looser ΔNDBI-only check
+# then wrongly claims. The tell that actually holds here: genuine ground
+# restructuring (high texture_change_frac) across a large contiguous
+# area -- a freshly built structure is small and local, never a sprawling
+# high-texture scar -- so this path requires BOTH, at a much larger area
+# floor than the strict rule, to stay a high-confidence signal rather
+# than a construction-detector loophole.
+LANDSLIDE_NDVI_LOOSE_THRESHOLD = -0.10
+LANDSLIDE_NDBI_LOOSE_CEILING = 0.10
+LANDSLIDE_TEXTURE_FLOOR = 0.35
+LANDSLIDE_LARGE_AREA_M2 = 50000.0
+
+# A real new-construction footprint (a building, a cluster of buildings)
+# is small and local -- it never legitimately spans this much contiguous
+# area in one polygon. Above this, a ΔNDBI-only signal is more likely
+# bare soil/debris (see LANDSLIDE_* loose path above) than construction.
+NEW_CONSTRUCTION_MAX_AREA_M2 = 50000.0
+
 VEGETATION_LOSS_NDVI_THRESHOLD = -0.08
 
 # ---------------------------------------------------------------------------

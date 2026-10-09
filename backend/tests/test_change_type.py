@@ -55,6 +55,34 @@ def test_landslide_requires_minimum_area():
     assert change_type != "landslide_bare_soil"
 
 
+def test_landslide_with_bare_soil_ndbi_bump_not_new_construction():
+    """Real Wayanad landslide polygon (ΔNDVI -0.13, ΔNDBI +0.085, texture
+    0.47, 1.56M m²): too mild on ΔNDVI/ΔNDBI for the strict landslide rule,
+    but a real landslide -- bare soil/debris raises ΔNDBI the same way
+    construction does, and the strict rule's NDBI ceiling alone can't
+    tell them apart. High texture change over a large contiguous area is
+    the tell; this must not fall through to new_construction."""
+    p = _FakePolygon(
+        area_m2=1_556_600.0,
+        extra={"ndwi_delta": 0.09, "ndvi_delta": -0.13, "ndbi_delta": 0.085, "texture_change_frac": 0.47},
+    )
+    change_type, rule = classify_change_type(p, band_count=6)
+    assert change_type == "landslide_bare_soil"
+    assert "texture" in rule
+
+
+def test_new_construction_area_cap():
+    """A sprawling high-ΔNDBI area without the landslide's texture/NDVI
+    signature still shouldn't be labeled new_construction -- real
+    construction footprints are small and local."""
+    p = _FakePolygon(
+        area_m2=config.NEW_CONSTRUCTION_MAX_AREA_M2 + 1000,
+        extra={"ndwi_delta": 0.0, "ndvi_delta": 0.0, "ndbi_delta": config.NEW_CONSTRUCTION_NDBI_THRESHOLD + 0.05},
+    )
+    change_type, _ = classify_change_type(p, band_count=5)
+    assert change_type != "new_construction"
+
+
 def test_new_construction_detected():
     p = _FakePolygon(extra={
         "ndwi_delta": 0.0, "ndvi_delta": 0.0,

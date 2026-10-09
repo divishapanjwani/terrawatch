@@ -22,6 +22,7 @@ def classify_change_type(p: PolygonResult, band_count: int) -> tuple[str, str]:
     ndvi_d = extra.get("ndvi_delta")
     ndwi_d = extra.get("ndwi_delta")
     ndbi_d = extra.get("ndbi_delta")
+    texture_d = extra.get("texture_change_frac")
 
     if ndwi_d is not None and ndwi_d >= config.FLOODING_NDWI_THRESHOLD:
         return "flooding", f"ΔNDWI {ndwi_d:+.2f} >= {config.FLOODING_NDWI_THRESHOLD} (water increased)"
@@ -39,7 +40,26 @@ def classify_change_type(p: PolygonResult, band_count: int) -> tuple[str, str]:
             "(vegetation loss without a built-up signature, large area)",
         )
 
-    if ndbi_d is not None and ndbi_d >= config.NEW_CONSTRUCTION_NDBI_THRESHOLD:
+    if (
+        ndvi_d is not None and ndbi_d is not None and texture_d is not None
+        and ndvi_d <= config.LANDSLIDE_NDVI_LOOSE_THRESHOLD
+        and ndbi_d < config.LANDSLIDE_NDBI_LOOSE_CEILING
+        and texture_d >= config.LANDSLIDE_TEXTURE_FLOOR
+        and p.area_m2 >= config.LANDSLIDE_LARGE_AREA_M2
+    ):
+        return (
+            "landslide_bare_soil",
+            f"ΔNDVI {ndvi_d:+.2f} <= {config.LANDSLIDE_NDVI_LOOSE_THRESHOLD}, texture change "
+            f"{texture_d:.2f} >= {config.LANDSLIDE_TEXTURE_FLOOR} on a {p.area_m2:,.0f} m² area "
+            "(ground genuinely restructured over a large contiguous area -- bare soil/debris "
+            "can raise ΔNDBI the same way construction does, but construction is never this "
+            "large and contiguous)",
+        )
+
+    if (
+        ndbi_d is not None and ndbi_d >= config.NEW_CONSTRUCTION_NDBI_THRESHOLD
+        and p.area_m2 < config.NEW_CONSTRUCTION_MAX_AREA_M2
+    ):
         return "new_construction", f"ΔNDBI {ndbi_d:+.2f} >= {config.NEW_CONSTRUCTION_NDBI_THRESHOLD} (built-up signature increased)"
 
     if ndbi_d is not None and ndbi_d <= config.STRUCTURE_LOST_NDBI_THRESHOLD:

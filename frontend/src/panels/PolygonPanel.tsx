@@ -67,16 +67,13 @@ export default function PolygonPanel({
   return (
     <div
       style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: "320px",
+        height: "100%",
+        width: "100%",
         background: "var(--color-panel)",
         borderLeft: "1px solid var(--color-border)",
         padding: "16px",
         overflowY: "auto",
-        zIndex: 20,
+        boxSizing: "border-box",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

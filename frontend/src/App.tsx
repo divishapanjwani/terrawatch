@@ -57,6 +57,7 @@ export default function App() {
   const [selected, setSelected] = useState<MapGeoJSONFeature | null>(null);
   const [showRejected, setShowRejected] = useState(false);
   const [zoomToId, setZoomToId] = useState<string | null>(null);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
 
   function handleSelectFromPriority(id: string) {
     if (state.phase !== "ready") return;
@@ -393,43 +394,77 @@ export default function App() {
         )}
       </aside>
 
-      <main style={{ flex: 1, position: "relative", background: "var(--color-bg)" }}>
-        {ready && ready.analysis.bounds ? (
-          <CompareMap
-            beforeUrl={imageryUrl(ready.analysis.id, "before")}
-            afterUrl={imageryUrl(ready.analysis.id, "after")}
-            bounds={ready.analysis.bounds}
-            geojson={ready.geojson}
-            selectedId={selected ? String(selected.properties?.id) : null}
-            zoomToId={zoomToId}
-            onPolygonClick={setSelected}
-            showRejected={showRejected}
-          />
-        ) : (
-          <div
-            style={{
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "column",
-              color: "var(--color-text-secondary)",
-              fontSize: "var(--font-size-sm)",
-            }}
-          >
-            <p>Upload a before/after GeoTIFF pair to begin.</p>
+      <main style={{ flex: 1, position: "relative", background: "var(--color-bg)", display: "flex", overflow: "hidden" }}>
+        <div style={{ flex: 1, position: "relative", minWidth: 0, height: "100%" }}>
+          {ready && ready.analysis.bounds ? (
+            <CompareMap
+              beforeUrl={imageryUrl(ready.analysis.id, "before")}
+              afterUrl={imageryUrl(ready.analysis.id, "after")}
+              bounds={ready.analysis.bounds}
+              geojson={ready.geojson}
+              selectedId={selected ? String(selected.properties?.id) : null}
+              zoomToId={zoomToId}
+              onPolygonClick={(f) => {
+                setSelected(f);
+                setRightPanelOpen(true);
+              }}
+              showRejected={showRejected}
+            />
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "column",
+                color: "var(--color-text-secondary)",
+                fontSize: "var(--font-size-sm)",
+              }}
+            >
+              <p>Upload a before/after GeoTIFF pair to begin.</p>
+            </div>
+          )}
+        </div>
+
+        {ready && (
+          <div style={{ display: "flex", height: "100%", flexShrink: 0 }}>
+            <button
+              onClick={() => setRightPanelOpen((o) => !o)}
+              style={{
+                width: "32px",
+                border: "none",
+                borderLeft: "1px solid var(--color-border)",
+                background: "var(--color-panel)",
+                color: "var(--color-text-secondary)",
+                cursor: "pointer",
+                fontSize: "var(--font-size-xs)",
+                writingMode: "vertical-rl",
+                textOrientation: "mixed",
+                padding: "12px 0",
+                whiteSpace: "nowrap",
+              }}
+              title={rightPanelOpen ? "Collapse panel" : "Expand priority queue"}
+            >
+              {rightPanelOpen ? "Close ✕" : `Priority (${ready.analysis.kept_count})`}
+            </button>
+            {rightPanelOpen && (
+              <div style={{ width: "360px", height: "100%", flexShrink: 0 }}>
+                {selected ? (
+                  <PolygonPanel
+                    feature={selected}
+                    onClose={() => {
+                      setSelected(null);
+                      setZoomToId(null);
+                    }}
+                  />
+                ) : (
+                  <PriorityPanel geojson={ready.geojson} onSelect={handleSelectFromPriority} />
+                )}
+              </div>
+            )}
           </div>
         )}
-        {ready && selected && (
-          <PolygonPanel
-            feature={selected}
-            onClose={() => {
-              setSelected(null);
-              setZoomToId(null);
-            }}
-          />
-        )}
-        {ready && !selected && <PriorityPanel geojson={ready.geojson} onSelect={handleSelectFromPriority} />}
       </main>
         </>
       )}
