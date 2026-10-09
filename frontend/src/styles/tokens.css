@@ -1,0 +1,62 @@
+:root {
+  --color-bg: #f7f6f2;
+  --color-panel: #ffffff;
+  --color-text: #1f2328;
+  --color-text-secondary: #5b6169;
+  --color-border: #dcd9d0;
+
+  --color-accent: #2f5d46;
+  --color-accent-hover: #264a39;
+
+  --color-severity-high: #c0392b;
+  --color-severity-medium: #e67e22;
+  --color-severity-low: #f1c40f;
+  --color-rejected: #8a8f98;
+
+  --color-danger: #c0392b;
+  --color-warning: #b8860b;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  --font-ui: "Inter", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+
+  --transition-fast: 150ms ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+.mono,
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font-family: var(--font-ui);
+}
