@@ -29,7 +29,12 @@ class Analysis(SQLModel, table=True):
     engine_key: Optional[str] = Field(default=None)  # tinycd | engine2 | spectral (actually used)
     engine_fell_back: bool = Field(default=False)
     pixel_size_m: Optional[float] = Field(default=None)
-    polygon_count: int = Field(default=0)
+    polygon_count: int = Field(default=0)  # kept count, kept for API back-compat
+    kept_count: int = Field(default=0)
+    rejected_count: int = Field(default=0)
+    reject_reason_counts: Optional[str] = Field(default=None)  # JSON {reason: count}
+    summary_line: Optional[str] = Field(default=None)
+    quality_report: Optional[str] = Field(default=None)  # JSON, see app/geo/quality.py
     geojson_path: Optional[str] = Field(default=None)
     gpkg_path: Optional[str] = Field(default=None)
 

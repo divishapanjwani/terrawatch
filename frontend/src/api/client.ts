@@ -11,6 +11,17 @@ export interface Bounds {
 
 export type EngineChoice = "auto" | "tinycd" | "engine2" | "spectral";
 
+export interface QualityReport {
+  before_cloud_pct: number;
+  after_cloud_pct: number;
+  cloud_method: string;
+  misalignment_px: number;
+  resolution_m: number;
+  band_count: number;
+  engine: string | null;
+  warnings: string[];
+}
+
 export interface AnalysisStatus {
   id: string;
   mode: string;
@@ -25,6 +36,11 @@ export interface AnalysisStatus {
   engine_fell_back: boolean;
   pixel_size_m: number | null;
   polygon_count: number;
+  kept_count: number;
+  rejected_count: number;
+  reject_reason_counts: Record<string, number>;
+  summary_line: string | null;
+  quality_report: QualityReport | null;
   created_at: string;
 }
 

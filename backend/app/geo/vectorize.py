@@ -36,6 +36,14 @@ class PolygonResult:
     status: str = "kept"
     severity: Optional[str] = None
     sev_score: Optional[float] = None
+    # Per-polygon mean of each extra feature map passed into vectorize()
+    # (e.g. ndvi_delta, cloud_overlap_frac) -- see app/geo/features.py and
+    # app/pipeline/false_alarm.py. Empty unless the caller asked for extras.
+    extra: dict = field(default_factory=dict)
+    reject_reason: Optional[str] = None
+    change_type: Optional[str] = None
+    change_type_rule: Optional[str] = None
+    needs_review: bool = False
 
 
 def native_pixel_area_m2(aligned: AlignedPair) -> float:
@@ -102,7 +110,15 @@ def vectorize(
     aligned: AlignedPair,
     simplify_tolerance_m: float,
     engine: str,
+    extra_maps: Optional[dict] = None,
 ) -> list[PolygonResult]:
+    """extra_maps: optional {name: (array (H,W) on the native grid, Resampling)}.
+    Each is reprojected onto the same area-CRS grid as everything else and
+    reduced to a per-polygon mean, stored in PolygonResult.extra[name].
+    Used by the false-alarm filter / change-type rules for things like
+    ndvi_delta, cloud_overlap_frac, texture_change_frac -- see
+    app/geo/features.py and app/pipeline/false_alarm.py."""
+    extra_maps = extra_maps or {}
     native_bounds_4326 = rasterio.warp.transform_bounds(
         aligned.crs, "EPSG:4326",
         *rasterio.transform.array_bounds(aligned.height, aligned.width, aligned.transform),
@@ -123,6 +139,13 @@ def vectorize(
         aligned.width, aligned.height, area_crs, Resampling.bilinear,
     )
 
+    extra_area = {}
+    for name, (arr, resampling) in extra_maps.items():
+        extra_area[name], _, _, _ = _to_area_grid(
+            arr.astype(np.float32), aligned.crs, aligned.transform,
+            aligned.width, aligned.height, area_crs, resampling,
+        )
+
     labels = cc_label(mask_area, connectivity=1)
     to_4326 = Transformer.from_crs(area_crs, "EPSG:4326", always_xy=True)
 
@@ -140,6 +163,7 @@ def vectorize(
         comp_mask = labels == val
         confidence = float(prob_area[comp_mask].mean())
         magnitude = float(magnitude_area[comp_mask].mean())
+        extra_values = {name: float(arr[comp_mask].mean()) for name, arr in extra_area.items()}
 
         centroid = poly.centroid
         lon, lat = to_4326.transform(centroid.x, centroid.y)
@@ -155,6 +179,7 @@ def vectorize(
                 centroid_lat=float(lat),
                 centroid_lon=float(lon),
                 engine=engine,
+                extra=extra_values,
             )
         )
     return results

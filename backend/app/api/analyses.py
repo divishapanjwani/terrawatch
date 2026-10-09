@@ -70,6 +70,11 @@ def _process_analysis(
             analysis.engine_fell_back = result["engine_fell_back"]
             analysis.pixel_size_m = result["pixel_size_m"]
             analysis.polygon_count = result["polygon_count"]
+            analysis.kept_count = result["kept_count"]
+            analysis.rejected_count = result["rejected_count"]
+            analysis.reject_reason_counts = json.dumps(result["reject_reason_counts"])
+            analysis.summary_line = result["summary_line"]
+            analysis.quality_report = json.dumps(result["quality_report"])
             analysis.geojson_path = result["geojson_path"]
             analysis.gpkg_path = result["gpkg_path"]
             session.add(analysis)
@@ -155,6 +160,11 @@ async def get_analysis(analysis_id: str):
             "engine_fell_back": analysis.engine_fell_back,
             "pixel_size_m": analysis.pixel_size_m,
             "polygon_count": analysis.polygon_count,
+            "kept_count": analysis.kept_count,
+            "rejected_count": analysis.rejected_count,
+            "reject_reason_counts": json.loads(analysis.reject_reason_counts) if analysis.reject_reason_counts else {},
+            "summary_line": analysis.summary_line,
+            "quality_report": json.loads(analysis.quality_report) if analysis.quality_report else None,
             "created_at": analysis.created_at.isoformat(),
         }
 

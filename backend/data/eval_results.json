@@ -3,9 +3,10 @@
     {
       "engine": "unet_oscd",
       "dataset": "OSCD test split",
+      "stage": "raw",
       "n_images": 10,
       "threshold": 0.5,
-      "elapsed_seconds": 2.111116647720337,
+      "elapsed_seconds": 3.977166175842285,
       "precision": 0.19578363982778765,
       "recall": 0.9353583484727522,
       "f1": 0.3237928817096431,
@@ -13,11 +14,38 @@
       "false_positive_rate": 0.20939620584618854
     },
     {
-      "engine": "spectral_baseline",
+      "engine": "unet_oscd",
       "dataset": "OSCD test split",
+      "stage": "morphology",
       "n_images": 10,
       "threshold": 0.5,
-      "elapsed_seconds": 0.049188852310180664,
+      "elapsed_seconds": 3.977166175842285,
+      "precision": 0.196669809187709,
+      "recall": 0.9350188902229738,
+      "f1": 0.3249833400701356,
+      "accuracy": 0.7992518362954916,
+      "false_positive_rate": 0.20814743021159982
+    },
+    {
+      "engine": "unet_oscd",
+      "dataset": "OSCD test split",
+      "stage": "false_alarm_filter",
+      "n_images": 10,
+      "threshold": 0.5,
+      "elapsed_seconds": 3.977166175842285,
+      "precision": 0.2003510231604592,
+      "recall": 0.9264129949647026,
+      "f1": 0.3294528196226195,
+      "accuracy": 0.805096987071856,
+      "false_positive_rate": 0.2015147014638254
+    },
+    {
+      "engine": "spectral_baseline",
+      "dataset": "OSCD test split",
+      "stage": "raw",
+      "n_images": 10,
+      "threshold": 0.5,
+      "elapsed_seconds": 4.191116094589233,
       "precision": 0.1584077630049343,
       "recall": 0.5919083211275042,
       "f1": 0.24992899669005128,
@@ -25,16 +53,69 @@
       "false_positive_rate": 0.1713854626071352
     },
     {
+      "engine": "spectral_baseline",
+      "dataset": "OSCD test split",
+      "stage": "morphology",
+      "n_images": 10,
+      "threshold": 0.5,
+      "elapsed_seconds": 4.191116094589233,
+      "precision": 0.18815860285054598,
+      "recall": 0.5450693689219686,
+      "f1": 0.27974789522843163,
+      "accuracy": 0.8549401287096288,
+      "false_positive_rate": 0.1281720014567336
+    },
+    {
+      "engine": "spectral_baseline",
+      "dataset": "OSCD test split",
+      "stage": "false_alarm_filter",
+      "n_images": 10,
+      "threshold": 0.5,
+      "elapsed_seconds": 4.191116094589233,
+      "precision": 0.21934803783519832,
+      "recall": 0.5336912312905071,
+      "f1": 0.3109110751404443,
+      "accuracy": 0.8777336500823929,
+      "false_positive_rate": 0.10351613421545885
+    },
+    {
       "engine": "siamese_levir_cd",
       "dataset": "LEVIR-CD test split",
+      "stage": "raw",
       "n_images": 128,
       "threshold": 0.5,
-      "elapsed_seconds": 338.3567819595337,
+      "elapsed_seconds": 859.8653328418732,
       "precision": 0.9292525292609074,
       "recall": 0.898673677904655,
       "f1": 0.91370733118163,
       "accuracy": 0.9913527071475983,
       "false_positive_rate": 0.00367255307028423
+    },
+    {
+      "engine": "siamese_levir_cd",
+      "dataset": "LEVIR-CD test split",
+      "stage": "morphology",
+      "n_images": 128,
+      "threshold": 0.5,
+      "elapsed_seconds": 859.8653328418732,
+      "precision": 0.9291884844469854,
+      "recall": 0.8984994889873408,
+      "f1": 0.9135863348487887,
+      "accuracy": 0.9913411140441895,
+      "false_positive_rate": 0.003675418504980408
+    },
+    {
+      "engine": "siamese_levir_cd",
+      "dataset": "LEVIR-CD test split",
+      "stage": "false_alarm_filter",
+      "n_images": 128,
+      "threshold": 0.5,
+      "elapsed_seconds": 859.8653328418732,
+      "precision": 0.9306284138040609,
+      "recall": 0.8772152413401344,
+      "f1": 0.903132775104938,
+      "accuracy": 0.9904138818383217,
+      "false_positive_rate": 0.003509945539155639
     }
   ]
 }

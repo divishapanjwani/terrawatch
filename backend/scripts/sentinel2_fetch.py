@@ -1,13 +1,18 @@
 """Shared helper: fetch a small Sentinel-2 L2A before/after pair from
 Microsoft Planetary Computer's public STAC API (no API key needed) and
-save it as a 5-band (R, G, B, NIR, SWIR) GeoTIFF with RAW reflectance
-values (uint16, DN = reflectance * 10000) — the same convention OSCD
-ships in, so Engine 2's feature computation (app/engines/engine2.py) sees
-consistent units whether it's training or doing real inference.
+save it as a 6-band (R, G, B, NIR, SWIR, SCL) GeoTIFF with RAW reflectance
+values for the first 5 bands (uint16, DN = reflectance * 10000) — the same
+convention OSCD ships in, so Engine 2's feature computation
+(app/engines/engine2.py) sees consistent units whether it's training or
+doing real inference. The 6th band is Sentinel-2's own Scene
+Classification Layer (SCL), used for real per-pixel cloud detection in the
+quality check (app/geo/quality.py) instead of a brightness heuristic.
 
-B11 (SWIR) is native 20m resolution; it's resampled onto the 10m grid of
-the other four bands (same approach as app/geo/align.py's co-registration,
-just band-to-band within one scene instead of before-to-after).
+B11 (SWIR) and SCL are both native 20m resolution; they're resampled onto
+the 10m grid of the other four bands (same approach as app/geo/align.py's
+co-registration, just band-to-band within one scene instead of
+before-to-after). SCL is categorical, so it's resampled with
+nearest-neighbor, not bilinear, to avoid inventing fractional class codes.
 """
 from pathlib import Path
 
@@ -19,7 +24,8 @@ import rasterio.warp
 from rasterio.windows import from_bounds
 from rasterio.enums import Resampling
 
-BANDS = ["B04", "B03", "B02", "B08", "B11"]  # R, G, B, NIR, SWIR
+BANDS = ["B04", "B03", "B02", "B08", "B11", "SCL"]  # R, G, B, NIR, SWIR, SCL
+CATEGORICAL_BANDS = {"SCL"}
 CATALOG_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
 
@@ -63,9 +69,10 @@ def save_clip(item, bbox, out_path: Path) -> dict:
                 if data.shape != (height, width):
                     data = data[:height, :width]
             else:
-                # Native resolution differs (e.g. B11 at 20m) -- resample
-                # directly onto the reference 10m grid.
+                # Native resolution differs (e.g. B11/SCL at 20m) --
+                # resample directly onto the reference 10m grid.
                 dst = np.zeros((height, width), dtype="uint16")
+                resampling = Resampling.nearest if b in CATEGORICAL_BANDS else Resampling.bilinear
                 rasterio.warp.reproject(
                     source=rasterio.band(src, 1),
                     destination=dst,
@@ -73,7 +80,7 @@ def save_clip(item, bbox, out_path: Path) -> dict:
                     src_crs=src.crs,
                     dst_transform=ref_transform,
                     dst_crs=ref_crs,
-                    resampling=Resampling.bilinear,
+                    resampling=resampling,
                 )
                 data = dst
             bands.append(data)

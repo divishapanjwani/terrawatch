@@ -4,6 +4,7 @@ import { API_BASE } from "../api/client";
 interface MetricRecord {
   engine: string;
   dataset: string;
+  stage?: string;
   n_images: number;
   threshold: number;
   precision: number;
@@ -20,6 +21,15 @@ const ENGINE_LABEL: Record<string, string> = {
   spectral_baseline: "Spectral baseline",
 };
 
+const STAGE_LABEL: Record<string, string> = {
+  raw: "Raw model",
+  morphology: "+ morphology",
+  false_alarm_filter: "+ false-alarm filter",
+  full: "Full pipeline",
+};
+
+const STAGE_ORDER = ["raw", "morphology", "false_alarm_filter", "full"];
+
 function pct(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
 }
@@ -35,13 +45,25 @@ export default function AccuracyPage() {
       .catch((e) => setError(String(e)));
   }, []);
 
+  const groups = new Map<string, MetricRecord[]>();
+  for (const r of results ?? []) {
+    const key = `${r.engine}__${r.dataset}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  for (const rows of groups.values()) {
+    rows.sort((a, b) => STAGE_ORDER.indexOf(a.stage ?? "full") - STAGE_ORDER.indexOf(b.stage ?? "full"));
+  }
+
   return (
     <div style={{ padding: "32px", maxWidth: "900px", overflowY: "auto", height: "100%" }}>
       <h1 style={{ fontSize: "var(--font-size-xl)", margin: "0 0 4px" }}>Accuracy</h1>
       <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", margin: "0 0 24px" }}>
         Real numbers from <code className="mono">scripts/evaluate.py</code>, run against each
         engine's held-out test split (TinyCD on LEVIR-CD, Engine 2 and the spectral baseline on
-        OSCD). Never estimated or made up — re-run the script to refresh this table.
+        OSCD). <code className="mono">--ablation</code> breaks each engine down into raw model →
+        + morphology → + false-alarm filter, so you can see what each stage actually buys you.
+        Never estimated or made up — re-run the script to refresh this table.
       </p>
 
       {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--font-size-xs)" }}>{error}</p>}
@@ -50,75 +72,85 @@ export default function AccuracyPage() {
       )}
       {results && results.length === 0 && (
         <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-          No evaluation results yet. Run <code className="mono">python scripts/evaluate.py levircd</code>{" "}
-          or <code className="mono">python scripts/evaluate.py oscd --engine engine2</code> from{" "}
+          No evaluation results yet. Run <code className="mono">python scripts/evaluate.py levircd --ablation</code>{" "}
+          or <code className="mono">python scripts/evaluate.py oscd --engine engine2 --ablation</code> from{" "}
           <code className="mono">backend/</code>.
         </p>
       )}
 
-      {results && results.length > 0 && (
-        <div style={{ overflowX: "auto", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--font-size-sm)" }}>
-            <thead>
-              <tr style={{ background: "var(--color-bg)", borderBottom: "1px solid var(--color-border)" }}>
-                {["Engine", "Dataset", "N", "Precision", "Recall", "F1", "Accuracy", "FPR", "Threshold"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      style={{
-                        textAlign: "left",
-                        padding: "8px 12px",
-                        fontWeight: 600,
-                        color: "var(--color-text-secondary)",
-                        fontSize: "var(--font-size-xs)",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((r) => (
-                <tr key={`${r.engine}-${r.dataset}`} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <td style={{ padding: "8px 12px" }}>{ENGINE_LABEL[r.engine] ?? r.engine}</td>
-                  <td style={{ padding: "8px 12px", color: "var(--color-text-secondary)" }}>{r.dataset}</td>
-                  <td className="mono" style={{ padding: "8px 12px" }}>
-                    {r.n_images}
-                  </td>
-                  <td className="mono" style={{ padding: "8px 12px" }}>
-                    {pct(r.precision)}
-                  </td>
-                  <td className="mono" style={{ padding: "8px 12px" }}>
-                    {pct(r.recall)}
-                  </td>
-                  <td className="mono" style={{ padding: "8px 12px", fontWeight: 600 }}>
-                    {r.f1.toFixed(3)}
-                  </td>
-                  <td className="mono" style={{ padding: "8px 12px" }}>
-                    {pct(r.accuracy)}
-                  </td>
-                  <td className="mono" style={{ padding: "8px 12px" }}>
-                    {pct(r.false_positive_rate)}
-                  </td>
-                  <td className="mono" style={{ padding: "8px 12px", color: "var(--color-text-secondary)" }}>
-                    {r.threshold}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {Array.from(groups.entries()).map(([key, rows]) => {
+        const [engine, dataset] = key.split("__");
+        return (
+          <div key={key} style={{ marginBottom: "24px" }}>
+            <h2 style={{ fontSize: "var(--font-size-sm)", margin: "0 0 2px" }}>
+              {ENGINE_LABEL[engine] ?? engine}
+            </h2>
+            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: "0 0 8px" }}>
+              {dataset}
+            </p>
+            <div style={{ overflowX: "auto", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--font-size-sm)" }}>
+                <thead>
+                  <tr style={{ background: "var(--color-bg)", borderBottom: "1px solid var(--color-border)" }}>
+                    {["Stage", "N", "Precision", "Recall", "F1", "Accuracy", "FPR", "Threshold"].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          fontWeight: 600,
+                          color: "var(--color-text-secondary)",
+                          fontSize: "var(--font-size-xs)",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.stage ?? "full"} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "8px 12px" }}>{STAGE_LABEL[r.stage ?? "full"] ?? r.stage}</td>
+                      <td className="mono" style={{ padding: "8px 12px" }}>
+                        {r.n_images}
+                      </td>
+                      <td className="mono" style={{ padding: "8px 12px" }}>
+                        {pct(r.precision)}
+                      </td>
+                      <td className="mono" style={{ padding: "8px 12px" }}>
+                        {pct(r.recall)}
+                      </td>
+                      <td className="mono" style={{ padding: "8px 12px", fontWeight: 600 }}>
+                        {r.f1.toFixed(3)}
+                      </td>
+                      <td className="mono" style={{ padding: "8px 12px" }}>
+                        {pct(r.accuracy)}
+                      </td>
+                      <td className="mono" style={{ padding: "8px 12px" }}>
+                        {pct(r.false_positive_rate)}
+                      </td>
+                      <td className="mono" style={{ padding: "8px 12px", color: "var(--color-text-secondary)" }}>
+                        {r.threshold}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
 
-      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "20px", lineHeight: 1.5 }}>
-        TinyCD is trained on 0.5m LEVIR-CD aerial photos and evaluated on that dataset's own
-        128-image test split. Engine 2 and the spectral baseline are evaluated on OSCD's 10-city
-        Sentinel-2 test split — a much smaller, much harder (10m/pixel) benchmark, which is reflected
-        in the lower numbers. These are two different tasks, not a head-to-head comparison, except
-        where the spectral baseline and Engine 2 share the same OSCD rows.
-      </p>
+      {results && results.length > 0 && (
+        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "8px", lineHeight: 1.5 }}>
+          TinyCD is trained on 0.5m LEVIR-CD aerial photos and evaluated on that dataset's own
+          128-image test split. Engine 2 and the spectral baseline are evaluated on OSCD's 10-city
+          Sentinel-2 test split — a much smaller, much harder (10m/pixel) benchmark, which is reflected
+          in the lower numbers. These are two different tasks, not a head-to-head comparison, except
+          where the spectral baseline and Engine 2 share the same OSCD rows.
+        </p>
+      )}
     </div>
   );
 }

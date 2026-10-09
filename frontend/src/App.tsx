@@ -25,6 +25,7 @@ type AppState =
 
 const STEP_LABELS: Record<string, string> = {
   validating: "Validating",
+  quality_check: "Quality check",
   detecting: "Detecting",
   filtering: "Filtering",
   vectorizing: "Vectorizing",
@@ -52,6 +53,7 @@ export default function App() {
   const [mode, setMode] = useState<"disaster" | "prevention">("disaster");
   const [engine, setEngine] = useState<EngineChoice>("auto");
   const [selected, setSelected] = useState<MapGeoJSONFeature | null>(null);
+  const [showRejected, setShowRejected] = useState(false);
 
   async function handleSubmit() {
     if (!beforeFile || !afterFile) return;
@@ -274,13 +276,34 @@ export default function App() {
           <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-danger)" }}>{state.message}</p>
         )}
 
+        {ready && ready.analysis.quality_report && ready.analysis.quality_report.warnings.length > 0 && (
+          <section
+            style={{
+              marginBottom: "16px",
+              padding: "8px 10px",
+              background: "rgba(184,134,11,0.08)",
+              border: "1px solid var(--color-warning)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "var(--font-size-xs)",
+              color: "var(--color-warning)",
+              lineHeight: 1.5,
+            }}
+          >
+            {ready.analysis.quality_report.warnings.map((w, i) => (
+              <div key={i}>{w}</div>
+            ))}
+          </section>
+        )}
+
         {ready && (
           <section>
             <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-              Analysis <span className="mono">{ready.analysis.id}</span> ready — {ready.analysis.polygon_count}{" "}
-              change{ready.analysis.polygon_count === 1 ? "" : "s"} found (
+              Analysis <span className="mono">{ready.analysis.id}</span> ready (
               {ENGINE_NAME_LABEL[ready.analysis.engine ?? ""] ?? ready.analysis.engine}).
             </p>
+            {ready.analysis.summary_line && (
+              <p style={{ fontSize: "var(--font-size-xs)", marginTop: "4px" }}>{ready.analysis.summary_line}</p>
+            )}
             <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "4px" }}>
               Pixel size ~<span className="mono">{ready.analysis.pixel_size_m?.toFixed(1)}</span> m
               {ready.analysis.engine_fell_back && ready.analysis.engine_choice === "auto" && (
@@ -290,7 +313,26 @@ export default function App() {
                 <> — "{ready.analysis.engine_choice}" unavailable, fell back to spectral baseline</>
               )}
             </p>
-            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                marginTop: "12px",
+                fontSize: "var(--font-size-xs)",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showRejected}
+                onChange={(e) => setShowRejected(e.target.checked)}
+              />
+              Show rejected changes ({ready.analysis.rejected_count})
+            </label>
+
+            <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
               <a
                 href={exportUrl(ready.analysis.id, "geojson")}
                 style={{
@@ -324,6 +366,20 @@ export default function App() {
             </div>
           </section>
         )}
+
+        {ready && ready.analysis.quality_report && (
+          <section style={{ marginTop: "16px" }}>
+            <h2 style={{ fontSize: "var(--font-size-sm)", margin: "0 0 8px", color: "var(--color-text-secondary)" }}>
+              Quality report
+            </h2>
+            <QualityRow label="Cloud (before)" value={`${ready.analysis.quality_report.before_cloud_pct.toFixed(1)}%`} />
+            <QualityRow label="Cloud (after)" value={`${ready.analysis.quality_report.after_cloud_pct.toFixed(1)}%`} />
+            <QualityRow label="Cloud method" value={ready.analysis.quality_report.cloud_method} />
+            <QualityRow label="Misalignment" value={`${ready.analysis.quality_report.misalignment_px.toFixed(1)} px`} />
+            <QualityRow label="Resolution" value={`${ready.analysis.quality_report.resolution_m.toFixed(1)} m`} />
+            <QualityRow label="Bands" value={String(ready.analysis.quality_report.band_count)} />
+          </section>
+        )}
       </aside>
 
       <main style={{ flex: 1, position: "relative", background: "var(--color-bg)" }}>
@@ -335,6 +391,7 @@ export default function App() {
             geojson={ready.geojson}
             selectedId={selected ? String(selected.properties?.id) : null}
             onPolygonClick={setSelected}
+            showRejected={showRejected}
           />
         ) : (
           <div
@@ -355,6 +412,22 @@ export default function App() {
       </main>
         </>
       )}
+    </div>
+  );
+}
+
+function QualityRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        padding: "3px 0",
+        fontSize: "var(--font-size-xs)",
+      }}
+    >
+      <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
+      <span className="mono">{value}</span>
     </div>
   );
 }

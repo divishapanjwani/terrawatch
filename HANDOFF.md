@@ -1,121 +1,135 @@
 # Handoff — TerraWatch
 
-You're picking this up at the start of **Phase 4**. This file is the
+You're picking this up at the start of **Phase 5**. This file is the
 practical "get running and know what's real" doc. `README.md` has the
 fuller technical writeup per phase; `PROJECT_BRIEF.md` is the original
-spec; `terrawatch-phase-prompts.md` has the Phase 4-8 prompts to paste
+spec; `terrawatch-phase-prompts.md` has the Phase 5-8 prompts to paste
 into Claude Code one at a time.
 
-## Status: Phases 1-3 done
+## Status: Phases 1-4 done
 
 ### What works
 
 - Upload two GeoTIFFs (drag-and-drop or click), backend aligns the after
-  image onto the before image's exact pixel grid, generates matching
-  preview PNGs, and runs the detection pipeline in the background with
-  real progress steps, polled by the frontend.
-- **Two trained engines, auto-selected by resolution/band count, with a
-  safety-net fallback — see "Phase 3" below.** Full geo pipeline:
-  morphological filtering → `rasterio.features.shapes` vectorization →
-  simplify → per-polygon attributes (area in a correctly resolved
-  projected CRS, change magnitude, confidence, centroid lat/lon, severity
-  tier) → GeoJSON (EPSG:4326) + GeoPackage (native CRS) export.
-- Split-view swipe map with severity-colored polygon layers, legend,
-  click-to-select detail panel, an Engine dropdown (Auto/TinyCD/Engine
-  2/Spectral baseline), and a real-numbers Accuracy page.
-- 22 unit tests pass (`backend/tests/`) — area-from-geometry, centroid
-  conversion, severity formula, engine auto-selection rules (including a
-  regression test for a real bug — see below).
+  image onto the before image's exact pixel grid, runs a quality check
+  (cloud %, misalignment), detects changes with the resolution-appropriate
+  engine, and runs **every candidate through a false-alarm filter** before
+  vectorizing — see "Phase 4" below.
+- Two trained engines (TinyCD, Engine 2/U-Net), auto-selected by
+  resolution/band count, with a safety-net fallback to a spectral
+  baseline. Full geo pipeline: morphological filtering →
+  `rasterio.features.shapes` vectorization → simplify → per-polygon
+  attributes (area in a correctly resolved projected CRS, change
+  magnitude, confidence, centroid lat/lon, severity tier, **status,
+  reject_reason, change_type, needs_review**) → GeoJSON (EPSG:4326) +
+  GeoPackage (native CRS) export, **kept and rejected polygons both
+  included**.
+- Split-view swipe map: severity-colored kept polygons, dotted
+  needs-review outline, toggleable grey-dashed rejected layer, legend,
+  click-to-select detail panel (shows the rejection reason in plain
+  language for rejected polygons, the estimated change type + rule for
+  kept ones), an Engine dropdown, a quiet amber quality-warning banner,
+  and an Accuracy page with a real ablation table (raw → +morphology →
+  +false-alarm filter).
+- 55 unit tests pass (`backend/tests/`).
 
-### Phase 3: what changed, and the honest state of each engine
+### Phase 4: false-alarm filter — what changed, and the honest results
 
-**The core problem:** TinyCD (Engine 1) is trained on 0.5m LEVIR-CD photos
-and was finding 0 changes on both the synthetic test pair and real
-Sentinel-2 — the map was empty on our actual demo data. Phase 3 built
-Engine 2 (a small U-Net trained on OSCD) and the auto-selection logic that
-routes each input to whichever engine actually fits its resolution.
+**The problem Phase 4 solves:** Phase 3 left Engine 2 finding 187
+candidates on the Wayanad pair, most of them noise (19.6% precision) —
+clouds, seasonal vegetation, and the real landslide path all mixed
+together with no way to tell them apart. Phase 4 makes every candidate
+either `kept` or `rejected` with an explained reason, computed from
+per-polygon spectral/texture features (`app/geo/features.py`), not from
+the detector's probability alone.
 
-**1. Safety net + auto-selection** (`app/engines/select.py`): resolution
-≤2m AND <5 bands → TinyCD; everything coarser or truly multispectral →
-Engine 2, falling back to the spectral baseline if Engine 2 is
-unavailable. **This fallback never crosses the other direction** — coarse
-input never falls back to TinyCD, even if TinyCD is available and Engine
-2 isn't. We hit this exact bug during development (see Gotcha #8) and
-there's a regression test for it (`tests/test_engine_select.py`).
+**1. Quality check** (`app/geo/quality.py`, runs before detection,
+progress step `quality_check`): cloud % per image (Sentinel-2 SCL band
+when available — see the Wayanad fetch update below — else an RGB
+brightness/whiteness heuristic), misalignment via `skimage.registration.
+phase_cross_correlation` on the two images **after** co-registration (so
+it measures genuine source-georeferencing error, not grid mismatch),
+resolution, band count. Warnings surface as a quiet amber banner in the
+left panel. Verified end-to-end against
+`terrawatch-test-pair/after_misaligned_3px.tif`: detects exactly 3.0px,
+triggers the warning; the normal pair detects 0.0px, no warning.
 
-**2. Engine 2 (`app/engines/engine2.py` + `app/engines/unet_model.py`)**
-is a real trained model, not a stub: a ~1.9M-param U-Net, input = stacked
-before/after 5-band (R,G,B,NIR,SWIR) reflectance + ΔNDVI/ΔNDWI/ΔNDBI/Δ
-brightness (14 channels total), trained on OSCD's 14-city train split
-(`scripts/train_oscd_unet.py`, ~4 min on this Mac's MPS GPU for 4000
-steps). Weights at `models/engine2/unet_oscd.pth` (gitignored, retrain
-with the script below).
+**2. False-alarm filter** (`app/pipeline/false_alarm.py`), checked in
+this order (first match wins): `too_small` → `cloud` → `misalignment_edge`
+→ `vegetation_seasonal` → `shadow_illumination` → else `kept`. Each check
+needs specific bands/features; unavailable ones (e.g. vegetation on
+RGB-only input) are skipped, not treated as false. Per-polygon features
+(`app/geo/features.py`, aggregated by `app/geo/vectorize.py`'s generic
+`extra_maps` mechanism): ΔNDVI/ΔNDWI/ΔNDBI, brightness-change fraction (of
+the scene's own dynamic range), texture-change fraction (Sobel gradient
+magnitude — the key discriminator between "real structural change" and
+"same structure, different lighting/color"), cloud-mask overlap, edge/
+no-data proximity.
 
-**3. Real evaluation numbers** (`scripts/evaluate.py`, written to
-`data/eval_results.json`, served at `GET /api/metrics`, shown on the
-Accuracy page):
+**3. Change type** (`app/pipeline/change_type.py`), KEPT polygons only,
+same priority-order pattern: `flooding` (ΔNDWI) → `landslide_bare_soil`
+(ΔNDVI down + ΔNDBI flat + large area) → `new_construction` (ΔNDBI up) →
+`structure_lost` (ΔNDBI down) → `vegetation_loss` (ΔNDVI down) → `other`.
+Needs NDBI (so a 5th SWIR band) to tell construction/landslide/demolition
+apart from plain vegetation loss — on 4-band RGB+NIR input it honestly
+falls back to `vegetation_loss`/`other` rather than guessing.
 
-| Engine | Dataset | N | Precision | Recall | F1 | Accuracy | FPR |
-|---|---|---|---|---|---|---|---|
-| TinyCD (Engine 1) | LEVIR-CD test split | 128 | 92.9% | 89.9% | **0.914** | 99.1% | 0.4% |
-| Engine 2 (U-Net) | OSCD test split | 10 | 19.6% | 93.5% | **0.324** | 79.8% | 20.9% |
-| Spectral baseline | OSCD test split | 10 | 15.8% | 59.2% | **0.250** | 81.6% | 17.1% |
+**4. `scripts/evaluate.py --ablation`**: runs raw model → +morphology →
++false-alarm filter per image/pair and upserts all three as separate rows
+(by engine+dataset+**stage**) into `data/eval_results.json`. The
+lightweight ablation-stage-3 reconstruction
+(`app/pipeline/ablation.py`) replicates the real pipeline's
+classification on plain (non-georeferenced) test images without the
+geo/CRS machinery, which doesn't apply to LEVIR-CD/OSCD.
 
-**Be honest about Engine 2 with your teammate/demo audience:** F1 0.324 is
-real and it does genuinely beat the spectral baseline it's meant to
-replace, but it's a quick ~4-minute training run on a small (24-scene)
-dataset — high recall, low precision (lots of false positives). It is
-good enough to light up real structure on real imagery (see the Wayanad
-result below) but is not "done." More steps, data augmentation, or a
-larger architecture would likely help if you want to push on it; that
-wasn't the Phase 3 goal (the goal was "make the map not empty on
-Sentinel-2," which is achieved).
+**Real ablation numbers** (`GET /api/metrics`, Accuracy page):
 
-**4. Real-world tests, not just benchmarks** (scripts + their outputs are
-reproducible but the imagery itself is gitignored — see Setup below):
+| Engine | Dataset | Stage | Precision | Recall | F1 |
+|---|---|---|---|---|---|
+| Spectral baseline | OSCD | raw | 15.8% | 59.2% | 0.250 |
+| Spectral baseline | OSCD | +morphology | 18.8% | 54.5% | 0.280 |
+| Spectral baseline | OSCD | **+false-alarm filter** | **21.9%** | 53.4% | **0.311** |
+| Engine 2 (U-Net) | OSCD | raw | 19.6% | 93.5% | 0.324 |
+| Engine 2 (U-Net) | OSCD | +morphology | 19.7% | 93.5% | 0.325 |
+| Engine 2 (U-Net) | OSCD | **+false-alarm filter** | **20.0%** | 92.6% | **0.329** |
+| TinyCD | LEVIR-CD | raw | 92.9% | 89.9% | 0.914 |
+| TinyCD | LEVIR-CD | +morphology | 92.9% | 89.8% | 0.914 |
+| TinyCD | LEVIR-CD | +false-alarm filter | 93.1% | 87.7% | 0.903 |
 
-- **Pune, India, 2019 vs 2024** (`scripts/fetch_real_test_pair.py`,
-  updated in Phase 3 to pull 5 bands incl. SWIR and keep raw reflectance
-  instead of rescaling to uint8): Auto correctly selects Engine 2 (10m
-  pixel size), finds 4 polygons outlining real new construction visible in
-  the imagery.
-- **Wayanad landslide, Kerala (30 July 2024), Mundakkai/Chooralmala**
-  (`scripts/fetch_wayanad.py`): before = 2024-01-31 (0.99% cloud), after =
-  2024-12-16 (0.01% cloud) — both essentially cloud-free. Auto selects
-  Engine 2. **The landslide debris path is genuinely detected** — multiple
-  polygons cluster tightly around the known headscarp coordinates
-  (11.465°N, 76.135°E, from a peer-reviewed post-event survey) and trace
-  the flow path toward Mundakkai village; visually, the outlined polygon
-  follows the bare-soil scar almost exactly. 187 polygons total, most of
-  which are smaller false positives scattered across vegetation (expected
-  given Engine 2's 19.6% precision) — the landslide itself is the obvious,
-  large, high/medium-severity cluster, not hidden among noise.
-- **Barbuda, Hurricane Irma (high-res, OpenAerialMap)**
-  (`scripts/fetch_oam_barbuda.py`): WorldView-2 2014-04-24 (~0.48m/px) vs
-  a RescUAV drone survey 2017-09-21 (~days after Irma made landfall).
-  Source verified directly via `api.openaerialmap.org`, not trusted from
-  secondhand research — the first candidate "before" tile the research
-  turned up doesn't actually overlap the after tile at all (looked right
-  from its nominal bbox, was wrong), and the second candidate's nominal
-  bbox overlaps but its *real pixel data* doesn't fully cover it (satellite
-  mosaic tiles are padded to a grid with large blank regions) — see
-  Gotcha #9. Auto correctly selects TinyCD (0.49m/px); finds 6
-  building-scale polygons (48-104 m², confidence 0.72-0.88).
+Precision improves at every stage without recall collapsing, on both OSCD
+engines — the spectral baseline's precision improves by nearly 40%
+relative. On LEVIR-CD, TinyCD is already so well-calibrated for its own
+domain that the filter trades a little recall (89.9%→87.7%) for a small
+precision gain — not every stage helps every model; that's a real,
+reported result, not tuned to look good.
 
-Also not built yet: false-alarm filtering (next up — Phase 4; on the
-synthetic test pair, the spectral baseline currently flags all 3 planted
-fakes as real changes), population/facility/priority-queue impact analysis
-(Phase 5), auto-fetch UI (Phase 6 — the fetch scripts here are one-offs,
-not a UI feature), LLM summaries/ask-the-map (Phase 7), reports/alerts
-(Phase 8).
+**5. `terrawatch-test-pair` acceptance result** (Spectral baseline
+forced, same as Phase 2's test): **R1–R4 still FOUND** (unchanged areas/
+centroids), R5 still correctly below the area floor. Precision 0.38→**0.73**,
+F1 0.55→**0.83**. F1 (seasonal_vegetation) now correctly rejected with
+reason `vegetation_seasonal` ("good", was a false alarm in Phase 2). F2
+(shadow_shift) and F3 (cloud) remain false alarms — see Gotcha #10, this
+is an honestly-documented limitation, not an oversight.
+
+**6. Wayanad, verified exactly as described:** the ~4.89M m² polygon at
+(11.453°N, 76.159°E) — the one with "High severity" in the Phase 3
+screenshot — is now `status: rejected, reject_reason: cloud` (97%
+confidence, SCL-based: `cloud_method: scl`). The long diagonal landslide
+polygon (1.56M m², centroid 11.486°N/76.152°E, right at Mundakkai) stays
+`status: kept`. Final count: 187 candidates → 179 kept, 8 rejected (cloud:
+7, vegetation_seasonal: 1).
+
+Also not built yet: population/facility/priority-queue impact analysis
+(Phase 5, next), auto-fetch UI (Phase 6), LLM summaries/ask-the-map
+(Phase 7), reports/alerts (Phase 8).
 
 ## Setup from a fresh clone
 
 ### Prerequisites
 
 - **Python 3.11** — not 3.13/3.14. `rasterio`, `torch`, and `geopandas`
-  don't ship wheels for the newest Python yet; you'll hit build failures
-  or missing-wheel errors. On macOS: `brew install python@3.11`.
+  don't ship wheels for the newest Python yet. On macOS:
+  `brew install python@3.11`.
 - **Node.js 20+** and npm.
 
 ### Backend
@@ -127,8 +141,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Download Engine 1's weights** (TinyCD, 1.3 MB, direct GitHub link, no
-account/manual click needed):
+**Download Engine 1's weights** (TinyCD, 1.3 MB, direct link):
 
 ```bash
 mkdir -p models/tinycd
@@ -136,237 +149,208 @@ curl -L -o models/tinycd/levir_best.pth \
   https://github.com/AndreaCodegoni/Tiny_model_4_CD/raw/main/pretrained_models/levir_best.pth
 ```
 
-**Download OSCD and train Engine 2** (optional — the app works without
-this, auto-selection just falls back to the spectral baseline on
-Sentinel-2-class input):
+**Download OSCD and train Engine 2** (optional — auto-selection falls
+back to the spectral baseline on Sentinel-2-class input without it):
 
 ```bash
-mkdir -p data/oscd_raw
-cd data/oscd_raw
+mkdir -p data/oscd_raw && cd data/oscd_raw
 curl -sL -o images.zip "https://hf.co/datasets/hkristen/oscd/resolve/main/Onera%20Satellite%20Change%20Detection%20dataset%20-%20Images.zip"
 curl -sL -o train_labels.zip "https://hf.co/datasets/hkristen/oscd/resolve/main/Onera%20Satellite%20Change%20Detection%20dataset%20-%20Train%20Labels.zip"
 curl -sL -o test_labels.zip "https://hf.co/datasets/hkristen/oscd/resolve/main/Onera%20Satellite%20Change%20Detection%20dataset%20-%20Test%20Labels.zip"
 unzip -q images.zip -d images && unzip -q train_labels.zip -d train_labels && unzip -q test_labels.zip -d test_labels
-cd ../..
-python scripts/train_oscd_unet.py          # ~4 min on Apple Silicon MPS, longer on CPU
+cd ../.. && python scripts/train_oscd_unet.py   # ~4 min on Apple Silicon MPS
 ```
 
-No Kaggle account needed — this is a Hugging Face mirror of the original
-OSCD release that torchgeo's own dataset loader uses, found by checking
-torchgeo's source rather than trusting the Kaggle link in `PROJECT_BRIEF.md`
-section 3 at face value.
+No Kaggle account needed (HF mirror — see `scripts/oscd_data.py`). If you
+skip either model, the pipeline still runs; `engine`/`engine_key`/
+`engine_fell_back` in `GET /api/analyses/{id}` tell you what actually ran.
 
-If you skip either model, the pipeline still runs — it silently falls back
-per the auto-selection rule. Check `GET /api/analyses/{id}` — `engine`,
-`engine_key`, and `engine_fell_back` tell you exactly what ran and whether
-it was a fallback.
-
-Start the API (use `--reload`, see Gotcha #4):
+Start the API with `--reload` (see Gotcha #4):
 
 ```bash
-source venv/bin/activate
 uvicorn app.main:app --reload --port 8000
 ```
 
-Backend: **http://127.0.0.1:8000** — health check at `/api/health`.
+Backend: **http://127.0.0.1:8000**.
 
 ### Frontend
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 ```
 
-Frontend: **http://localhost:5173** — expects the backend at
-`http://127.0.0.1:8000` (hardcoded in `frontend/src/api/client.ts`,
-`API_BASE`).
+Frontend: **http://localhost:5173**.
 
 ### Smoke test
 
-Upload `terrawatch-test-pair/before.tif` and `terrawatch-test-pair/after.tif`
-through the UI with Engine = Auto. It should reach `status: ready` with
-`engine: siamese_levir_cd`, `engine_key: tinycd`, and `polygon_count: 0`
-(expected — see the Phase 2 note in README.md; this synthetic pair is
-genuinely out of TinyCD's training distribution).
+Upload `terrawatch-test-pair/before.tif` + `after.tif` with Engine = Auto
+→ `engine_key: tinycd`, `polygon_count: 0` (expected, out of TinyCD's
+training distribution — see README.md). Switch Engine to "Spectral
+baseline" and re-run → ~19 kept, 2 rejected.
 
 ## Running tests
 
 ```bash
-cd backend
-source venv/bin/activate
+cd backend && source venv/bin/activate
 python -m pytest tests/ -v
 ```
 
-22 tests, run in under a second (no model loading — pure geometry/severity/
-engine-selection logic against synthetic fixtures).
+55 tests, under a second — includes a full rule-by-rule suite for every
+false-alarm reason (`test_false_alarm.py`) and every change-type rule
+(`test_change_type.py`), plus quality-check tests
+(`test_quality.py`, including the exact misalignment-detection case).
 
-### `check_results.py` (acceptance test against the planted answer key)
+### `check_results.py`
 
 ```bash
-# with the backend running, upload terrawatch-test-pair/before.tif + after.tif
-# via the UI with Engine = "Spectral baseline" (TinyCD/Engine 2 both score
-# 0 on this synthetic pair — see README.md), then:
+# upload terrawatch-test-pair/before.tif + after.tif via the UI,
+# Engine = "Spectral baseline" (TinyCD/Engine 2 both score 0 on this
+# synthetic pair — see README.md), then:
 curl "http://127.0.0.1:8000/api/analyses/<id>/export?format=geojson" -o export.geojson
 python terrawatch-test-pair/check_results.py export.geojson
 ```
 
-With the spectral baseline forced: R1-R4 found (areas within ±33%,
-centroids within 5m), R5 (16 m² shed) missed (expected, below the min-area
-filter), all 3 planted fakes (F1-F3) flagged as false alarms (expected —
-the false-alarm filter is Phase 4, next up).
+R1-R4 FOUND, F1 "good", F2/F3 still false alarms (documented limitation,
+see Gotcha #10).
 
-### Evaluation (`scripts/evaluate.py`)
+### Evaluation + ablation
 
 ```bash
 cd backend && source venv/bin/activate
-python scripts/evaluate.py levircd                       # TinyCD vs LEVIR-CD (needs LEVIR-CD, see README.md)
-python scripts/evaluate.py oscd --engine engine2          # Engine 2 vs OSCD (needs OSCD + trained weights)
-python scripts/evaluate.py oscd --engine spectral         # spectral baseline vs OSCD, for comparison
+python scripts/evaluate.py levircd --ablation                    # needs LEVIR-CD
+python scripts/evaluate.py oscd --engine engine2 --ablation      # needs OSCD + trained weights
+python scripts/evaluate.py oscd --engine spectral --ablation     # needs OSCD only
 ```
 
-Each upserts into `data/eval_results.json` (by engine+dataset), which
-`GET /api/metrics` and the frontend Accuracy page read directly.
+Upserts by engine+dataset+**stage** into `data/eval_results.json`, read by
+`GET /api/metrics` and the Accuracy page's ablation table.
 
 ### Real-imagery test scripts
 
 ```bash
-python scripts/fetch_real_test_pair.py   # Pune, India — 5-band Sentinel-2, 2019 vs 2024
-python scripts/fetch_wayanad.py          # Wayanad landslide, Kerala — Sentinel-2, Jan vs Dec 2024
-python scripts/fetch_oam_barbuda.py      # Barbuda, Hurricane Irma — high-res OpenAerialMap, 2014 vs 2017
+python scripts/fetch_real_test_pair.py   # Pune, India
+python scripts/fetch_wayanad.py          # Wayanad landslide, Kerala
+python scripts/fetch_oam_barbuda.py      # Barbuda, Hurricane Irma (high-res)
 ```
-
-All three need network access (Planetary Computer STAC API / OpenAerialMap
-S3, both public/no-auth) and write into `data/` (gitignored). Upload the
-resulting `before.tif`/`after.tif` pairs through the UI same as any other
-pair.
 
 ## Gotchas we hit (so you don't re-discover them)
 
-1. **Vite + maplibre-gl: "Worker failed to load" in dev mode.** MapLibre's
-   web worker silently fails under Vite's dev-server dependency
-   pre-bundling. Fix already in place in `frontend/vite.config.ts`:
-   ```ts
-   optimizeDeps: { exclude: ['maplibre-gl'] }
-   ```
+1. **Vite + maplibre-gl: "Worker failed to load" in dev mode.** Fixed in
+   `frontend/vite.config.ts`: `optimizeDeps: { exclude: ['maplibre-gl'] }`.
 
 2. **Area must be computed in a projected CRS, never in degrees.**
-   `app/geo/vectorize.py`'s `resolve_area_crs()` uses the native CRS if
-   it's already projected, otherwise resolves the correct UTM zone via
-   `pyproj.database.query_utm_crs_info()`. Centroids are always converted
-   back to EPSG:4326 lat/lon for display/storage.
+   `app/geo/vectorize.py`'s `resolve_area_crs()` handles this.
 
 3. **Preview color stretch must be shared, not per-image/per-band.**
-   `app/geo/preview.py` computes ONE stretch from both images' RGB pixels
-   combined and applies it identically to both; uint8 input is used as-is
-   with no stretch.
+   `app/geo/preview.py`.
 
-4. **`uvicorn` without `--reload` silently serves stale code.** Always run
-   the dev server with `--reload`, or restart it explicitly after backend
-   code changes — we lost real time to this twice across two phases now.
+4. **`uvicorn` without `--reload` silently serves stale code.** Always use
+   `--reload` or restart explicitly after backend changes.
 
 5. **The after image is always resampled onto the before image's exact
-   grid** (`app/geo/align.py`) before anything else. Push any new
-   per-pixel logic through `AlignedPair`, don't reproject independently
-   elsewhere.
+   grid** (`app/geo/align.py`) before anything else.
 
 6. **LEVIR-CD and OSCD have no georeferencing — don't run either through
-   the geo pipeline.** `scripts/evaluate.py` calls `*.predict_arrays(...)`
-   directly on plain numpy arrays, bypassing `AlignedPair`/CRS logic
-   entirely (`scripts/oscd_data.py` documents OSCD's on-disk layout). Keep
-   that separation.
+   the geo pipeline.** `scripts/evaluate.py` and `app/pipeline/ablation.py`
+   work on plain numpy arrays directly, bypassing `AlignedPair`/CRS logic.
 
-7. **Python 3.14 (the system default on this machine) silently has no
-   wheels for rasterio/geopandas/torch.** Use the Python 3.11 venv.
+7. **Python 3.14 (this machine's system default) has no wheels for
+   rasterio/geopandas/torch.** Use the Python 3.11 venv.
 
 8. **Engine fallback must never cross the resolution boundary "upward."**
-   A real bug during Phase 3: the auto-selection fallback chain, when
-   Engine 2 was unavailable, fell back to TinyCD on 10m Sentinel-2 input
-   — exactly what "never run TinyCD on Sentinel-2" forbids. Root cause:
-   a generic "try the other trained engine" fallback didn't distinguish
-   direction. Fixed in `app/engines/select.py::resolve_engine` — coarse
-   input falls straight to the spectral baseline if Engine 2 is
-   unavailable, never to TinyCD. Covered by
-   `tests/test_engine_select.py::test_auto_never_falls_back_to_tinycd_on_coarse_input_when_engine2_unavailable`.
-   If you touch the fallback logic, keep that test passing.
+   Coarse input falls to the spectral baseline if Engine 2 is unavailable,
+   never to TinyCD. `app/engines/select.py::resolve_engine`,
+   regression-tested.
 
 9. **Don't trust a tile's nominal bbox as proof it has real pixel data
-   there, and don't trust secondhand research on specific dataset URLs
-   without verifying overlap yourself.** Satellite image mosaics (OAM,
-   Maxar Open Data, etc.) are often padded to a regular tile grid with
-   large blank regions outside the actual imaged footprint. We hit this
-   building the Barbuda test pair: a "before" tile whose nominal bbox
-   fully contained the target area turned out to be all-zero pixels there
-   (`scripts/fetch_oam_barbuda.py` now samples a few bands and raises
-   loudly instead of writing a silent all-black GeoTIFF if this happens
-   again). Separately, the very first before/after tile pair identified by
-   research didn't geographically overlap at all despite being described
-   as a matching pair — always verify footprint intersection directly
-   (`rasterio.warp.transform_bounds` + a manual overlap check) before
-   building anything on top of a "found" imagery pair.
+   there.** Satellite mosaics are padded to a grid with blank regions.
+   `scripts/fetch_oam_barbuda.py` now verifies actual pixel values, not
+   just bbox overlap.
+
+10. **A simple RGB brightness/whiteness cloud heuristic cannot reliably
+    tell a bright flat cloud from a bright flat rooftop.** This is a real,
+    fundamental limitation we hit and could not fully engineer around: on
+    `terrawatch-test-pair`, R2 (a destroyed building → bright rubble) and
+    F3 (a planted cloud) produce nearly identical brightness+saturation
+    signatures at the pixel level — a flat rooftop's *interior* pixels
+    have genuinely near-zero texture, same as a cloud's. We tried (a)
+    percentile-based (scene-relative) thresholds instead of absolute ones,
+    (b) adding a local-texture requirement, (c) morphological opening to
+    erode small bright spots — all failed to cleanly separate the two in
+    this image; moving the threshold just trades which one misclassifies.
+    **Current tradeoff, deliberately chosen:** very strict percentiles
+    (`CLOUD_HEURISTIC_BRIGHTNESS_PERCENTILE=99.5`,
+    `..._SATURATION_PERCENTILE=3`) plus a low overlap bar
+    (`CLOUD_OVERLAP_FRAC_THRESHOLD_HEURISTIC=0.15`) protect real changes
+    (R2 stays kept — required) at the cost of sometimes missing real
+    clouds on RGB-only input (F3 stays kept too — a known, accepted
+    miss). **This does not affect real Sentinel-2 input** — Wayanad uses
+    the actual SCL atmospheric-classification band
+    (`CLOUD_OVERLAP_FRAC_THRESHOLD_SCL=0.4`, a much more confident
+    signal) and correctly rejects its cloud polygon at 97% confidence. If
+    you need reliable RGB-only cloud detection, the real fix is a proper
+    cloud-detection model, not a brightness heuristic — out of scope here.
+
+11. **ΔNDWI rises on plain vegetation loss, not just real water** (McFeeters'
+    formula (G-NIR)/(G+NIR) increases when NIR drops, which bare-soil/
+    dead-vegetation does too) — a landslide and a seasonal vegetation
+    shift can have near-identical ΔNDVI *and* ΔNDWI. The real discriminator
+    we found: **texture change**. A landslide genuinely restructures the
+    ground (new texture); a color-only seasonal shift doesn't. See
+    `VEGETATION_SEASONAL_TEXTURE_CEILING` in `app/config.py` and Gotcha
+    #10's sibling reasoning in `app/pipeline/false_alarm.py`'s
+    `vegetation_seasonal` check. Also raised `FLOODING_NDWI_THRESHOLD` to
+    0.35 (comfortably above the ~0.25-0.3 vegetation-loss NDWI bump) so
+    `change_type` doesn't mislabel a landslide as flooding.
 
 ## Folder structure
 
 ```
 terrawatch/
   PROJECT_BRIEF.md              Original full spec
-  terrawatch-phase-prompts.md   Phase 3-8 prompts (paste one at a time)
+  terrawatch-phase-prompts.md   Phase 5-8 prompts (paste one at a time)
   README.md                     Phase-by-phase technical writeup
   HANDOFF.md                    This file
-  .env.example                  ANTHROPIC_API_KEY, LLM_MODEL, TELEGRAM_* (all optional, Phase 7-8)
 
   terrawatch-test-pair/         Synthetic UTM test pair + answer key + check_results.py
 
   backend/                      FastAPI app (Python 3.11)
     app/
       main.py                     App entrypoint, CORS, GET /api/metrics
-      db.py                       SQLModel engine/session, data dir paths
-      models.py                   Analysis table (incl. engine_choice/engine_key/engine_fell_back/pixel_size_m)
-      config.py                   Tunable thresholds (detection, min area, severity tiers)
-      api/
-        analyses.py                 All /api/analyses* routes (engine form field on upload)
+      models.py                   Analysis table (quality_report, kept/rejected counts, summary_line, ...)
+      config.py                   ALL tunable thresholds -- detection, false-alarm, change-type
+      api/analyses.py             All /api/analyses* routes
       geo/
         align.py                    Co-register after onto before's grid -> AlignedPair
-        preview.py                  AlignedPair -> matching PNG previews (shared stretch, EPSG:4326)
-        morphology.py                Threshold -> opening/closing -> min-area filter
-        vectorize.py                 Mask -> polygons w/ area (projected CRS) + centroid (4326)
-        export.py                    GeoDataFrame -> GeoJSON/GPKG
-      engines/
-        common.py                    Shared spectral magnitude calc
-        spectral.py                  Fallback/baseline engine (predict + predict_arrays)
-        siamese.py                   Engine 1: TinyCD wrapper, tiled inference
-        tinycd_src/                  Vendored TinyCD model code
-        unet_model.py                SmallUNet architecture (Engine 2)
-        engine2.py                   Engine 2: feature computation (indices) + inference
-        select.py                    Auto-selection + fallback chain (THE safety net — see Gotcha #8)
+        preview.py                  AlignedPair -> matching PNG previews
+        quality.py                  NEW: cloud masks (SCL/heuristic), misalignment (phase correlation)
+        features.py                 NEW: NDVI/NDWI/NDBI/brightness/texture per-pixel maps
+        morphology.py                Threshold -> opening/closing (NOT min-area anymore)
+        vectorize.py                 Mask -> polygons; generic extra_maps -> PolygonResult.extra
+        export.py                    GeoDataFrame -> GeoJSON/GPKG, now incl. status/reject_reason/change_type
+      engines/                     common.py, spectral.py, siamese.py, tinycd_src/, unet_model.py, engine2.py, select.py
       pipeline/
-        run.py                       Orchestrates: align -> select engine -> detect -> filter -> vectorize -> export
-        severity.py                  sev_score formula + tier assignment
+        run.py                       Orchestrates: align -> quality -> detect -> filter -> vectorize -> false_alarm -> change_type -> export
+        severity.py                  sev_score (KEPT polygons only, as of Phase 4)
+        false_alarm.py               NEW: kept/rejected classification, 5 reasons, priority order
+        change_type.py               NEW: estimated change type for kept polygons, 6 types
+        ablation.py                  NEW: raw/+morphology/+false-alarm masks for plain (non-geo) eval
       impact/ llm/ reports/ alerts/  Empty — Phase 5, 7, 8
     scripts/
-      evaluate.py                    levircd/oscd subcommands -> data/eval_results.json
-      oscd_data.py                   OSCD on-disk layout loader (train+test)
-      train_oscd_unet.py             Trains Engine 2, ~4 min on MPS
-      sentinel2_fetch.py             Shared Planetary Computer fetch/clip helper (5-band, raw reflectance)
-      fetch_real_test_pair.py        Pune, India
-      fetch_wayanad.py               Wayanad landslide, Kerala
-      fetch_oam_barbuda.py           Barbuda, Hurricane Irma (high-res, OpenAerialMap)
-    tests/                         pytest unit tests (geometry, severity, engine selection)
+      evaluate.py                    levircd/oscd subcommands, --ablation flag -> data/eval_results.json
+      oscd_data.py train_oscd_unet.py sentinel2_fetch.py
+      fetch_real_test_pair.py fetch_wayanad.py fetch_oam_barbuda.py
+    tests/                         geometry, severity, engine_select, false_alarm, change_type, quality
     models/                        Gitignored — tinycd/levir_best.pth, engine2/unet_oscd.pth
-    data/                          Gitignored except population/.gitkeep and eval_results.json —
-                                    uploads, previews, sqlite db, oscd_raw/, levir_cd/, real_test_pair/,
-                                    wayanad/, oam_barbuda/
+    data/                          Gitignored except population/.gitkeep and eval_results.json
 
-  frontend/                     React + Vite + TypeScript + MapLibre GL
+  frontend/
     src/
-      App.tsx                     Top-level layout, upload form, engine dropdown, progress, export buttons, nav
-      api/client.ts                Backend API client, all endpoint URLs/types
-      map/CompareMap.tsx            Synced swipe map, polygon layers, legend
-      panels/
-        FileDropSlot.tsx             Drag-and-drop upload slot
-        PolygonPanel.tsx              Selected-polygon detail side panel
-      pages/
-        AccuracyPage.tsx              Reads GET /api/metrics, renders the real-numbers table
-      styles/tokens.css             Design tokens (colors, type scale, severity palette)
-    vite.config.ts                 Has the maplibre-gl optimizeDeps fix — see Gotcha #1
+      App.tsx                     Upload form, engine dropdown, quality banner, rejected toggle, summary line
+      api/client.ts                Types incl. QualityReport, kept/rejected counts
+      map/CompareMap.tsx            Kept (severity) + needs-review (dotted) + rejected (grey dashed) layers
+      panels/PolygonPanel.tsx       Plain-language reject reason / estimated change type + rule
+      pages/AccuracyPage.tsx        Ablation table, grouped by engine+dataset, stage rows
+      styles/tokens.css
+    vite.config.ts
 ```

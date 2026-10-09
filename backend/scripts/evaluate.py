@@ -10,11 +10,15 @@ pipeline is exercised separately by terrawatch-test-pair/.
 
 Usage:
     source venv/bin/activate
-    python scripts/evaluate.py levircd [--dir data/levir_cd] [--limit N] [--threshold 0.5]
-    python scripts/evaluate.py oscd --engine engine2 [--dir data/oscd_raw] [--limit N] [--threshold 0.5]
-    python scripts/evaluate.py oscd --engine spectral [--dir data/oscd_raw] [--limit N] [--threshold 0.5]
+    python scripts/evaluate.py levircd [--dir data/levir_cd] [--limit N] [--threshold 0.5] [--ablation]
+    python scripts/evaluate.py oscd --engine engine2 [--dir data/oscd_raw] [--limit N] [--threshold 0.5] [--ablation]
+    python scripts/evaluate.py oscd --engine spectral [--dir data/oscd_raw] [--limit N] [--threshold 0.5] [--ablation]
 
-Results are upserted (by engine+dataset) into data/eval_results.json,
+--ablation runs three stages per image (raw model -> +morphology ->
++false-alarm filter) instead of one, so you can see how much each stage
+actually helps/hurts precision and recall.
+
+Results are upserted (by engine+dataset+stage) into data/eval_results.json,
 read by GET /api/metrics and the frontend Accuracy page.
 """
 import argparse
@@ -28,8 +32,11 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.engines import siamese, engine2, spectral  # noqa: E402
+from app.pipeline.ablation import ablation_masks  # noqa: E402
 
 RESULTS_PATH = Path(__file__).resolve().parent.parent / "data" / "eval_results.json"
+ABLATION_STAGES = ["raw", "morphology", "false_alarm_filter"]
+STAGE_LABELS = {"raw": "raw model", "morphology": "+ morphology", "false_alarm_filter": "+ false-alarm filter"}
 
 
 def load_rgb(path: Path) -> np.ndarray:
@@ -61,8 +68,10 @@ def _upsert_result(record: dict) -> None:
     results = []
     if RESULTS_PATH.exists():
         results = json.loads(RESULTS_PATH.read_text()).get("results", [])
+    stage = record.get("stage", "full")
     results = [
-        r for r in results if not (r["engine"] == record["engine"] and r["dataset"] == record["dataset"])
+        r for r in results
+        if not (r["engine"] == record["engine"] and r["dataset"] == record["dataset"] and r.get("stage", "full") == stage)
     ]
     results.append(record)
     RESULTS_PATH.write_text(json.dumps({"results": results}, indent=2))
@@ -81,6 +90,9 @@ def _aggregate(per_image_metrics: list[dict]) -> dict:
     return {"precision": precision, "recall": recall, "f1": f1, "accuracy": accuracy, "false_positive_rate": fpr}
 
 
+LEVIRCD_PIXEL_SIZE_M = 0.5
+
+
 def run_levircd(args) -> None:
     base = Path(args.dir)
     a_dir, b_dir, label_dir = base / "A", base / "B", base / "label"
@@ -94,33 +106,47 @@ def run_levircd(args) -> None:
         print("Engine 1 (TinyCD) weights are not available — see HANDOFF.md for the download step.")
         sys.exit(1)
 
-    per_image = []
+    stages = ABLATION_STAGES if args.ablation else ["full"]
+    per_image = {s: [] for s in stages}
     t0 = time.time()
     for i, name in enumerate(names):
         before, after, label = load_rgb(a_dir / name), load_rgb(b_dir / name), load_label(label_dir / name)
         prob = siamese.predict_arrays(before, after, "uint8")
-        pred = prob >= args.threshold
-        m = pixel_metrics(pred, label)
-        m["name"] = name
-        per_image.append(m)
+        if args.ablation:
+            masks = ablation_masks(prob, before, after, args.threshold, LEVIRCD_PIXEL_SIZE_M)
+            for s in stages:
+                m = pixel_metrics(masks[s], label)
+                m["name"] = name
+                per_image[s].append(m)
+        else:
+            pred = prob >= args.threshold
+            m = pixel_metrics(pred, label)
+            m["name"] = name
+            per_image["full"].append(m)
         if (i + 1) % 20 == 0 or i == len(names) - 1:
             print(f"  {i + 1}/{len(names)} images...")
     elapsed = time.time() - t0
 
-    agg = _aggregate(per_image)
-    record = {
-        "engine": siamese.ENGINE_NAME,
-        "dataset": "LEVIR-CD test split",
-        "n_images": len(names),
-        "threshold": args.threshold,
-        "elapsed_seconds": elapsed,
-        **agg,
-    }
-    _upsert_result(record)
-    print(f"\n{siamese.ENGINE_NAME} on {len(names)} LEVIR-CD test images ({elapsed:.1f}s):")
-    print(f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
-          f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}")
-    print(f"Results written to {RESULTS_PATH}")
+    for s in stages:
+        agg = _aggregate(per_image[s])
+        record = {
+            "engine": siamese.ENGINE_NAME,
+            "dataset": "LEVIR-CD test split",
+            "stage": s,
+            "n_images": len(names),
+            "threshold": args.threshold,
+            "elapsed_seconds": elapsed,
+            **agg,
+        }
+        _upsert_result(record)
+        label_str = STAGE_LABELS.get(s, s)
+        print(f"{siamese.ENGINE_NAME} [{label_str}] on {len(names)} LEVIR-CD test images:")
+        print(f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
+              f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}")
+    print(f"\n({elapsed:.1f}s total) Results written to {RESULTS_PATH}")
+
+
+OSCD_PIXEL_SIZE_M = 10.0  # Sentinel-2 10m bands (R,G,B,NIR); see scripts/oscd_data.py
 
 
 def run_oscd(args) -> None:
@@ -137,35 +163,46 @@ def run_oscd(args) -> None:
         print("Engine 2 weights are not available — see HANDOFF.md for the training/download step.")
         sys.exit(1)
 
-    per_image = []
+    stages = ABLATION_STAGES if args.ablation else ["full"]
+    per_image = {s: [] for s in stages}
     t0 = time.time()
     for i, (before, after, label, name) in enumerate(pairs):
         if args.engine == "engine2":
             prob = engine2.predict_arrays(before, after)
         else:
             prob = spectral.predict_arrays(before, after)
-        pred = prob >= args.threshold
-        m = pixel_metrics(pred, label)
-        m["name"] = name
-        per_image.append(m)
+        if args.ablation:
+            masks = ablation_masks(prob, before, after, args.threshold, OSCD_PIXEL_SIZE_M)
+            for s in stages:
+                m = pixel_metrics(masks[s], label)
+                m["name"] = name
+                per_image[s].append(m)
+        else:
+            pred = prob >= args.threshold
+            m = pixel_metrics(pred, label)
+            m["name"] = name
+            per_image["full"].append(m)
         if (i + 1) % 10 == 0 or i == len(pairs) - 1:
             print(f"  {i + 1}/{len(pairs)} pairs...")
     elapsed = time.time() - t0
 
-    agg = _aggregate(per_image)
-    record = {
-        "engine": engine_module.ENGINE_NAME,
-        "dataset": "OSCD test split",
-        "n_images": len(pairs),
-        "threshold": args.threshold,
-        "elapsed_seconds": elapsed,
-        **agg,
-    }
-    _upsert_result(record)
-    print(f"\n{engine_module.ENGINE_NAME} on {len(pairs)} OSCD test pairs ({elapsed:.1f}s):")
-    print(f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
-          f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}")
-    print(f"Results written to {RESULTS_PATH}")
+    for s in stages:
+        agg = _aggregate(per_image[s])
+        record = {
+            "engine": engine_module.ENGINE_NAME,
+            "dataset": "OSCD test split",
+            "stage": s,
+            "n_images": len(pairs),
+            "threshold": args.threshold,
+            "elapsed_seconds": elapsed,
+            **agg,
+        }
+        _upsert_result(record)
+        label_str = STAGE_LABELS.get(s, s)
+        print(f"{engine_module.ENGINE_NAME} [{label_str}] on {len(pairs)} OSCD test pairs:")
+        print(f"  precision {agg['precision']:.3f}  recall {agg['recall']:.3f}  F1 {agg['f1']:.3f}  "
+              f"accuracy {agg['accuracy']:.3f}  FPR {agg['false_positive_rate']:.3f}")
+    print(f"\n({elapsed:.1f}s total) Results written to {RESULTS_PATH}")
 
 
 def main():
@@ -176,6 +213,7 @@ def main():
     p_levir.add_argument("--dir", default="data/levir_cd")
     p_levir.add_argument("--limit", type=int, default=None)
     p_levir.add_argument("--threshold", type=float, default=0.5)
+    p_levir.add_argument("--ablation", action="store_true", help="raw -> +morphology -> +false-alarm filter")
     p_levir.set_defaults(func=run_levircd)
 
     p_oscd = sub.add_parser("oscd", help="Evaluate Engine 2 or the spectral baseline on the OSCD test split")
@@ -183,6 +221,7 @@ def main():
     p_oscd.add_argument("--dir", default="data/oscd_raw")
     p_oscd.add_argument("--limit", type=int, default=None)
     p_oscd.add_argument("--threshold", type=float, default=0.5)
+    p_oscd.add_argument("--ablation", action="store_true", help="raw -> +morphology -> +false-alarm filter")
     p_oscd.set_defaults(func=run_oscd)
 
     args = parser.parse_args()

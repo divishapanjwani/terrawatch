@@ -4,6 +4,7 @@ import {
   type StyleSpecification,
   type MapGeoJSONFeature,
   type GeoJSONSource,
+  type FilterSpecification,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { FeatureCollection } from "geojson";
@@ -50,9 +51,18 @@ interface Props {
   geojson?: FeatureCollection | null;
   selectedId?: string | null;
   onPolygonClick?: (feature: MapGeoJSONFeature) => void;
+  showRejected?: boolean;
   beforeLabel?: string;
   afterLabel?: string;
 }
+
+const KEPT_FILTER = ["==", ["get", "status"], "kept"] as unknown as FilterSpecification;
+const REJECTED_FILTER = ["==", ["get", "status"], "rejected"] as unknown as FilterSpecification;
+const NEEDS_REVIEW_FILTER = [
+  "all",
+  ["==", ["get", "status"], "kept"],
+  ["==", ["get", "needs_review"], true],
+] as unknown as FilterSpecification;
 
 function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
   if (map.getSource("changes")) {
@@ -60,10 +70,13 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
     return;
   }
   map.addSource("changes", { type: "geojson", data: geojson });
+
+  // Kept changes: filled, colored by severity.
   map.addLayer({
     id: "changes-fill",
     type: "fill",
     source: "changes",
+    filter: KEPT_FILTER,
     paint: {
       "fill-color": SEVERITY_COLOR_EXPR,
       "fill-opacity": 0.3,
@@ -73,11 +86,52 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
     id: "changes-line",
     type: "line",
     source: "changes",
+    filter: KEPT_FILTER,
     paint: {
       "line-color": SEVERITY_COLOR_EXPR,
       "line-width": 1.8,
     },
   });
+
+  // Needs-review kept changes: dotted outline overlay.
+  map.addLayer({
+    id: "changes-needs-review",
+    type: "line",
+    source: "changes",
+    filter: NEEDS_REVIEW_FILTER,
+    paint: {
+      "line-color": "#1F2328",
+      "line-width": 1.5,
+      "line-dasharray": [1, 2],
+    },
+  });
+
+  // Rejected changes: grey dashed outline, hidden by default (toggled by
+  // the "Show rejected changes" control).
+  map.addLayer({
+    id: "changes-rejected",
+    type: "line",
+    source: "changes",
+    filter: REJECTED_FILTER,
+    layout: { visibility: "none" },
+    paint: {
+      "line-color": "#8A8F98",
+      "line-width": 1.5,
+      "line-dasharray": [3, 2],
+    },
+  });
+  map.addLayer({
+    id: "changes-rejected-fill",
+    type: "fill",
+    source: "changes",
+    filter: REJECTED_FILTER,
+    layout: { visibility: "none" },
+    paint: {
+      "fill-color": "#8A8F98",
+      "fill-opacity": 0.12,
+    },
+  });
+
   map.addLayer({
     id: "changes-selected",
     type: "line",
@@ -90,6 +144,13 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
   });
 }
 
+function setRejectedVisibility(map: MLMap, visible: boolean) {
+  const v = visible ? "visible" : "none";
+  for (const id of ["changes-rejected", "changes-rejected-fill"]) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", v);
+  }
+}
+
 export default function CompareMap({
   beforeUrl,
   afterUrl,
@@ -97,6 +158,7 @@ export default function CompareMap({
   geojson,
   selectedId,
   onPolygonClick,
+  showRejected = false,
   beforeLabel = "Before",
   afterLabel = "After",
 }: Props) {
@@ -110,8 +172,10 @@ export default function CompareMap({
   const mapsRef = useRef<{ before: MLMap; after: MLMap } | null>(null);
   const geojsonRef = useRef(geojson);
   const onClickRef = useRef(onPolygonClick);
+  const showRejectedRef = useRef(showRejected);
   geojsonRef.current = geojson;
   onClickRef.current = onPolygonClick;
+  showRejectedRef.current = showRejected;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -161,20 +225,25 @@ export default function CompareMap({
           source: id,
           paint: { "raster-opacity": 1 },
         });
-        if (geojsonRef.current) addPolygonLayers(map, geojsonRef.current);
+        if (geojsonRef.current) {
+          addPolygonLayers(map, geojsonRef.current);
+          setRejectedVisibility(map, showRejectedRef.current);
+        }
       };
       if (map.isStyleLoaded()) onLoad();
       else map.on("load", onLoad);
 
-      map.on("click", "changes-fill", (e) => {
-        if (e.features && e.features[0]) onClickRef.current?.(e.features[0]);
-      });
-      map.on("mouseenter", "changes-fill", () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", "changes-fill", () => {
-        map.getCanvas().style.cursor = "";
-      });
+      for (const layerId of ["changes-fill", "changes-rejected-fill"]) {
+        map.on("click", layerId, (e) => {
+          if (e.features && e.features[0]) onClickRef.current?.(e.features[0]);
+        });
+        map.on("mouseenter", layerId, () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+        });
+      }
     };
 
     addImage(afterMap, "after-img", afterUrl);
@@ -209,9 +278,18 @@ export default function CompareMap({
     for (const map of [mapsRef.current.before, mapsRef.current.after]) {
       if (map.isStyleLoaded() && map.getSource("before-img")) {
         addPolygonLayers(map, geojson);
+        setRejectedVisibility(map, showRejected);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geojson]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      setRejectedVisibility(map, showRejected);
+    }
+  }, [showRejected]);
 
   useEffect(() => {
     if (!mapsRef.current) return;
@@ -359,12 +437,12 @@ export default function CompareMap({
         {afterLabel}
       </div>
 
-      <Legend />
+      <Legend showRejected={showRejected} />
     </div>
   );
 }
 
-function Legend() {
+function Legend({ showRejected }: { showRejected: boolean }) {
   return (
     <div
       title="Severity = change strength, not damage. sev_score = 0.5·norm(area_m²) + 0.5·norm(change_magnitude). High ≥ 0.66, Medium ≥ 0.33, else Low."
@@ -404,6 +482,30 @@ function Legend() {
           <span>{label}</span>
         </div>
       ))}
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <span
+          style={{
+            width: "14px",
+            height: "0px",
+            borderTop: "1.5px dotted #1F2328",
+            display: "inline-block",
+          }}
+        />
+        <span>Needs review</span>
+      </div>
+      {showRejected && (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span
+            style={{
+              width: "14px",
+              height: "0px",
+              borderTop: "1.5px dashed #8A8F98",
+              display: "inline-block",
+            }}
+          />
+          <span>Rejected</span>
+        </div>
+      )}
     </div>
   );
 }
