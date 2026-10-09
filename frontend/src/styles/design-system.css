@@ -164,6 +164,7 @@
   width: 32px;
   height: 18px;
   flex-shrink: 0;
+  cursor: pointer;
 }
 .ts-switch input {
   opacity: 0;

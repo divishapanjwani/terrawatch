@@ -467,6 +467,7 @@ export default function App() {
                                 onSelect={handleSelectFromPriority}
                                 hoveredId={hoveredId}
                                 onHoverRow={setHoveredId}
+                                selectedId={selected ? String(selected.properties?.id) : null}
                               />
                             )}
                           </div>

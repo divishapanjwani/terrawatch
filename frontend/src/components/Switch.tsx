@@ -8,10 +8,10 @@ export default function Switch({
   disabled?: boolean;
 }) {
   return (
-    <span className="ts-switch">
+    <label className="ts-switch">
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span className="track" />
       <span className="thumb" />
-    </span>
+    </label>
   );
 }
