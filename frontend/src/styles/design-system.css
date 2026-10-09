@@ -1,0 +1,298 @@
+/* TerraWatch AI dark design system -- reusable classes layered on top of
+   tokens.css. Inline styles still handle one-off layout; this file covers
+   the repeated visual language (buttons, cards, pills, inputs, motion). */
+
+/* ---------- Surfaces ---------- */
+
+.ts-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card), var(--inner-highlight);
+}
+
+.ts-panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+}
+
+.ts-float {
+  background: rgba(17, 27, 31, 0.85);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+
+/* ---------- Typography helpers ---------- */
+
+.ts-label {
+  font-size: var(--font-size-xxs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.ts-metric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+/* ---------- Buttons ---------- */
+
+.ts-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+    color var(--transition-fast), transform var(--transition-fast);
+}
+.ts-btn:hover:not(:disabled) {
+  background: var(--color-card-hover);
+  border-color: var(--color-border-strong);
+}
+.ts-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.ts-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ts-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-ring);
+}
+
+.ts-btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #06201c;
+  font-weight: 600;
+}
+.ts-btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.ts-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-secondary);
+}
+.ts-btn-ghost:hover:not(:disabled) {
+  background: var(--color-card);
+  color: var(--color-text);
+}
+
+.ts-btn-sm {
+  padding: 5px 10px;
+  font-size: var(--font-size-xs);
+}
+
+/* ---------- Segmented control ---------- */
+
+.ts-segment {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  gap: 2px;
+}
+.ts-segment button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.ts-segment button.active {
+  background: var(--color-accent);
+  color: #06201c;
+  font-weight: 600;
+}
+.ts-segment button:not(.active):hover {
+  background: var(--color-card);
+  color: var(--color-text);
+}
+
+/* ---------- Inputs ---------- */
+
+.ts-input,
+.ts-select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-ui);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  color: var(--color-text);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.ts-input:focus,
+.ts-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-ring);
+}
+
+/* ---------- Toggle switch ---------- */
+
+.ts-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.ts-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ts-switch .track {
+  position: absolute;
+  inset: 0;
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
+}
+.ts-switch .thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+.ts-switch input:checked + .track {
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-border);
+}
+.ts-switch input:checked ~ .thumb {
+  transform: translateX(14px);
+  background: var(--color-accent);
+}
+.ts-switch input:disabled ~ .track {
+  opacity: 0.4;
+}
+
+/* ---------- Pills / badges ---------- */
+
+.ts-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xxs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+}
+.ts-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.ts-pill-high { background: rgba(229, 72, 77, 0.14); color: var(--color-severity-high); border-color: rgba(229, 72, 77, 0.3); }
+.ts-pill-medium { background: rgba(245, 165, 36, 0.14); color: var(--color-severity-medium); border-color: rgba(245, 165, 36, 0.3); }
+.ts-pill-low { background: rgba(242, 212, 92, 0.14); color: var(--color-severity-low); border-color: rgba(242, 212, 92, 0.3); }
+.ts-pill-rejected { background: rgba(107, 125, 130, 0.14); color: var(--color-rejected); border-color: rgba(107, 125, 130, 0.3); }
+.ts-pill-neutral { background: var(--color-card); color: var(--color-text-secondary); border-color: var(--color-border); }
+
+/* ---------- Status dots (quality rows) ---------- */
+
+.ts-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.ts-status-dot.ok { background: var(--color-accent); box-shadow: 0 0 6px rgba(47, 211, 193, 0.5); }
+.ts-status-dot.warn { background: var(--color-warning); box-shadow: 0 0 6px rgba(245, 165, 36, 0.5); }
+
+/* ---------- Motion ---------- */
+
+@keyframes ts-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ts-slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes ts-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+@keyframes ts-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ts-fade-up {
+  animation: ts-fade-up var(--duration-slow) var(--ease-out) both;
+}
+.ts-slide-in-right {
+  animation: ts-slide-in-right var(--duration-slow) var(--ease-out) both;
+}
+.ts-pulse {
+  animation: ts-pulse 1.4s ease-in-out infinite;
+}
+.ts-spin {
+  animation: ts-spin 1s linear infinite;
+}
+
+/* ---------- Collapsible section ---------- */
+
+.ts-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 0;
+  cursor: pointer;
+  color: var(--color-text);
+  text-align: left;
+}
+.ts-section-header:hover .ts-label {
+  color: var(--color-text);
+}
+.ts-chevron {
+  color: var(--color-text-secondary);
+  transition: transform var(--transition-base);
+  flex-shrink: 0;
+}
+.ts-chevron.open {
+  transform: rotate(90deg);
+}

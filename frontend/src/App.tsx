@@ -1,7 +1,17 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
+import {
+  AlertTriangle,
+  Cpu,
+  Hospital,
+  Landmark,
+  MapPin,
+  Route,
+  X,
+} from "lucide-react";
 import "./styles/tokens.css";
+import "./styles/design-system.css";
 import "./App.css";
 import CompareMap from "./map/CompareMap";
 import FileDropSlot from "./panels/FileDropSlot";
@@ -9,10 +19,17 @@ import PolygonPanel from "./panels/PolygonPanel";
 import PriorityPanel from "./panels/PriorityPanel";
 import AccuracyPage from "./pages/AccuracyPage";
 import SettingsPage from "./pages/SettingsPage";
+import TopBar from "./components/TopBar";
+import LeftRail from "./components/LeftRail";
+import type { RailPage } from "./components/LeftRail";
+import CollapsibleSection from "./components/CollapsibleSection";
+import Switch from "./components/Switch";
+import Hero from "./components/Hero";
+import ProcessingCard from "./components/ProcessingCard";
+import KpiStrip from "./components/KpiStrip";
 import {
   applyHazardZone,
   createAnalysis,
-  exportUrl,
   getFacilities,
   getPolygons,
   imageryUrl,
@@ -28,16 +45,6 @@ type AppState =
   | { phase: "ready"; analysis: AnalysisStatus; geojson: FeatureCollection }
   | { phase: "error"; message: string };
 
-const STEP_LABELS: Record<string, string> = {
-  validating: "Validating",
-  quality_check: "Quality check",
-  detecting: "Detecting",
-  filtering: "Filtering",
-  vectorizing: "Vectorizing",
-  impact_analysis: "Impact analysis",
-  done: "Done",
-};
-
 const ENGINE_OPTIONS: { value: EngineChoice; label: string }[] = [
   { value: "auto", label: "Auto" },
   { value: "tinycd", label: "TinyCD" },
@@ -45,14 +52,8 @@ const ENGINE_OPTIONS: { value: EngineChoice; label: string }[] = [
   { value: "spectral", label: "Spectral baseline" },
 ];
 
-const ENGINE_NAME_LABEL: Record<string, string> = {
-  siamese_levir_cd: "TinyCD",
-  unet_oscd: "Engine 2 (U-Net)",
-  spectral_baseline: "spectral baseline",
-};
-
 export default function App() {
-  const [page, setPage] = useState<"analysis" | "accuracy" | "settings">("analysis");
+  const [page, setPage] = useState<RailPage>("analysis");
   const [state, setState] = useState<AppState>({ phase: "empty" });
   const [beforeFile, setBeforeFile] = useState<File | null>(null);
   const [afterFile, setAfterFile] = useState<File | null>(null);
@@ -62,6 +63,7 @@ export default function App() {
   const [showRejected, setShowRejected] = useState(false);
   const [zoomToId, setZoomToId] = useState<string | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState<"priority" | "details">("priority");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [showPopulation, setShowPopulation] = useState(false);
   const [showFacilities, setShowFacilities] = useState(false);
@@ -70,6 +72,16 @@ export default function App() {
   const [drawMode, setDrawMode] = useState(false);
   const [hazardZone, setHazardZone] = useState<GeoJSON.Polygon | null>(null);
   const [hazardZoneStatus, setHazardZoneStatus] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
+
+  const [openSections, setOpenSections] = useState({ analysis: true, engine: true, layers: true, quality: true });
+  function toggleSection(key: keyof typeof openSections) {
+    setOpenSections((s) => ({ ...s, [key]: !s[key] }));
+  }
+  const analysisSectionRef = useRef<HTMLDivElement>(null);
+  const layersSectionRef = useRef<HTMLDivElement>(null);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
 
   async function handleDrawComplete(polygon: GeoJSON.Polygon | null) {
     setDrawMode(false);
@@ -101,18 +113,19 @@ export default function App() {
     if (!feature) return;
     setSelected(feature as unknown as MapGeoJSONFeature);
     setZoomToId(id);
+    setRightPanelTab("details");
   }
 
-  async function handleSubmit() {
-    if (!beforeFile || !afterFile) return;
+  async function runAnalysis(before: File, after: File) {
     setSelected(null);
     setFacilities(null);
     setHazardZone(null);
     setHazardZoneStatus(null);
     setDrawMode(false);
+    setRightPanelTab("priority");
     setState({ phase: "uploading" });
     try {
-      const { analysis_id } = await createAnalysis(beforeFile, afterFile, mode, engine);
+      const { analysis_id } = await createAnalysis(before, after, mode, engine);
       setState({ phase: "processing", id: analysis_id, step: "validating", steps: [] });
       const analysis = await pollUntilReady(analysis_id, (status) => {
         setState({
@@ -134,545 +147,423 @@ export default function App() {
     }
   }
 
+  async function handleSubmit() {
+    if (!beforeFile || !afterFile) return;
+    await runAnalysis(beforeFile, afterFile);
+  }
+
+  async function handleLoadDemo() {
+    setDemoError(null);
+    setDemoLoading(true);
+    try {
+      const [beforeRes, afterRes] = await Promise.all([
+        fetch("/demo/wayanad_before.tif"),
+        fetch("/demo/wayanad_after.tif"),
+      ]);
+      if (!beforeRes.ok || !afterRes.ok) {
+        throw new Error("Demo imagery not found on this machine.");
+      }
+      const [beforeBlob, afterBlob] = await Promise.all([beforeRes.blob(), afterRes.blob()]);
+      const before = new File([beforeBlob], "wayanad_before.tif", { type: "image/tiff" });
+      const after = new File([afterBlob], "wayanad_after.tif", { type: "image/tiff" });
+      setBeforeFile(before);
+      setAfterFile(after);
+      setDemoLoading(false);
+      await runAnalysis(before, after);
+    } catch (err) {
+      setDemoLoading(false);
+      setDemoError(
+        `${(err as Error).message} Place wayanad_before.tif/wayanad_after.tif in frontend/public/demo/, or use "Upload your own GeoTIFFs".`
+      );
+    }
+  }
+
+  function handleUploadOwnClick() {
+    setOpenSections((s) => ({ ...s, analysis: true }));
+    leftPanelRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleNavigate(p: RailPage) {
+    setPage(p);
+    if (p === "analysis") {
+      setOpenSections((s) => ({ ...s, analysis: true }));
+      requestAnimationFrame(() => analysisSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }
+
+  function handleJumpToLayers() {
+    setPage("analysis");
+    setOpenSections((s) => ({ ...s, layers: true }));
+    requestAnimationFrame(() => layersSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   const ready = state.phase === "ready" ? state : null;
+  const analysisName = ready
+    ? beforeFile?.name.toLowerCase().includes("wayanad")
+      ? "Wayanad · Jul 2024"
+      : `Analysis ${ready.analysis.id.slice(0, 8)}`
+    : null;
 
   return (
-    <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
-      <nav
-        style={{
-          width: "56px",
-          background: "var(--color-panel)",
-          borderRight: "1px solid var(--color-border)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: "12px",
-          gap: "16px",
-        }}
-      >
-        <div
-          style={{
-            width: "28px",
-            height: "28px",
-            borderRadius: "var(--radius-sm)",
-            background: "var(--color-accent)",
-          }}
-          title="TerraWatch"
-        />
-        <button
-          onClick={() => setPage("analysis")}
-          title="New Analysis"
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "none",
-            borderRadius: "var(--radius-sm)",
-            background: page === "analysis" ? "var(--color-accent)" : "transparent",
-            color: page === "analysis" ? "white" : "var(--color-text-secondary)",
-            cursor: "pointer",
-            fontSize: "var(--font-size-xs)",
-          }}
-        >
-          Map
-        </button>
-        <button
-          onClick={() => setPage("accuracy")}
-          title="Accuracy"
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "none",
-            borderRadius: "var(--radius-sm)",
-            background: page === "accuracy" ? "var(--color-accent)" : "transparent",
-            color: page === "accuracy" ? "white" : "var(--color-text-secondary)",
-            cursor: "pointer",
-            fontSize: "var(--font-size-xs)",
-          }}
-        >
-          Acc.
-        </button>
-        <button
-          onClick={() => setPage("settings")}
-          title="Settings"
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "none",
-            borderRadius: "var(--radius-sm)",
-            background: page === "settings" ? "var(--color-accent)" : "transparent",
-            color: page === "settings" ? "white" : "var(--color-text-secondary)",
-            cursor: "pointer",
-            fontSize: "var(--font-size-xs)",
-          }}
-        >
-          Set.
-        </button>
-      </nav>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--color-bg)" }}>
+      <TopBar
+        analysisName={analysisName}
+        analysis={ready?.analysis ?? null}
+        mode={mode}
+        onModeChange={setMode}
+        onOpenSettings={() => setPage("settings")}
+      />
 
-      {page === "accuracy" ? (
-        <AccuracyPage />
-      ) : page === "settings" ? (
-        <SettingsPage />
-      ) : (
-        <>
-      <aside
-        style={{
-          width: "320px",
-          background: "var(--color-panel)",
-          borderRight: "1px solid var(--color-border)",
-          padding: "16px",
-          overflowY: "auto",
-        }}
-      >
-        <h1 style={{ fontSize: "var(--font-size-lg)", margin: "0 0 4px" }}>TerraWatch</h1>
-        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: "0 0 20px" }}>
-          Satellite change intelligence
-        </p>
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <LeftRail page={page} onNavigate={handleNavigate} onJumpToLayers={handleJumpToLayers} />
 
-        <section style={{ marginBottom: "20px" }}>
-          <h2 style={{ fontSize: "var(--font-size-sm)", margin: "0 0 8px", color: "var(--color-text-secondary)" }}>
-            New analysis
-          </h2>
-
-          <FileDropSlot label="Before image (GeoTIFF)" file={beforeFile} onChange={setBeforeFile} />
-          <FileDropSlot label="After image (GeoTIFF)" file={afterFile} onChange={setAfterFile} />
-
-          <label style={{ display: "block", fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>
-            Mode
-          </label>
-          <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-            {(["disaster", "prevention"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                style={{
-                  flex: 1,
-                  padding: "6px 8px",
-                  fontSize: "var(--font-size-xs)",
-                  borderRadius: "var(--radius-sm)",
-                  border: `1px solid ${mode === m ? "var(--color-accent)" : "var(--color-border)"}`,
-                  background: mode === m ? "var(--color-accent)" : "white",
-                  color: mode === m ? "white" : "var(--color-text)",
-                  cursor: "pointer",
-                  textTransform: "capitalize",
-                }}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-
-          <label style={{ display: "block", fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>
-            Engine
-          </label>
-          <select
-            value={engine}
-            onChange={(e) => setEngine(e.target.value as EngineChoice)}
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              fontSize: "var(--font-size-xs)",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-border)",
-              background: "white",
-              color: "var(--color-text)",
-              marginBottom: "16px",
-            }}
-          >
-            {ENGINE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={handleSubmit}
-            disabled={!beforeFile || !afterFile || state.phase === "uploading" || state.phase === "processing"}
-            style={{
-              width: "100%",
-              padding: "8px",
-              fontSize: "var(--font-size-sm)",
-              borderRadius: "var(--radius-sm)",
-              border: "none",
-              background: "var(--color-accent)",
-              color: "white",
-              cursor: "pointer",
-              opacity: !beforeFile || !afterFile ? 0.5 : 1,
-            }}
-          >
-            {state.phase === "uploading" || state.phase === "processing" ? "Processing…" : "Run analysis"}
-          </button>
-        </section>
-
-        {state.phase === "processing" && (
-          <section style={{ marginBottom: "20px" }}>
-            {(state.steps.length ? state.steps : ["validating", "detecting", "filtering", "vectorizing", "done"]).map(
-              (step) => {
-                const isDone =
-                  (state.steps.length ? state.steps : []).indexOf(step) <
-                  (state.steps.length ? state.steps : []).indexOf(state.step);
-                const isCurrent = step === state.step;
-                return (
-                  <div
-                    key={step}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "var(--font-size-xs)",
-                      padding: "3px 0",
-                      color: isCurrent ? "var(--color-text)" : "var(--color-text-secondary)",
-                      fontWeight: isCurrent ? 600 : 400,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: isDone || isCurrent ? "var(--color-accent)" : "var(--color-border)",
-                        display: "inline-block",
-                      }}
-                    />
-                    {STEP_LABELS[step] ?? step}
-                  </div>
-                );
-              }
-            )}
-          </section>
-        )}
-
-        {state.phase === "error" && (
-          <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-danger)" }}>{state.message}</p>
-        )}
-
-        {ready && ready.analysis.quality_report && ready.analysis.quality_report.warnings.length > 0 && (
-          <section
-            style={{
-              marginBottom: "16px",
-              padding: "8px 10px",
-              background: "rgba(184,134,11,0.08)",
-              border: "1px solid var(--color-warning)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "var(--font-size-xs)",
-              color: "var(--color-warning)",
-              lineHeight: 1.5,
-            }}
-          >
-            {ready.analysis.quality_report.warnings.map((w, i) => (
-              <div key={i}>{w}</div>
-            ))}
-          </section>
-        )}
-
-        {ready && (
-          <section>
-            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-              Analysis <span className="mono">{ready.analysis.id}</span> ready (
-              {ENGINE_NAME_LABEL[ready.analysis.engine ?? ""] ?? ready.analysis.engine}).
-            </p>
-            {ready.analysis.summary_line && (
-              <p style={{ fontSize: "var(--font-size-xs)", marginTop: "4px" }}>{ready.analysis.summary_line}</p>
-            )}
-            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "4px" }}>
-              Pixel size ~<span className="mono">{ready.analysis.pixel_size_m?.toFixed(1)}</span> m
-              {ready.analysis.engine_fell_back && ready.analysis.engine_choice === "auto" && (
-                <> — requested engine unavailable, fell back automatically</>
-              )}
-              {ready.analysis.engine_fell_back && ready.analysis.engine_choice !== "auto" && (
-                <> — "{ready.analysis.engine_choice}" unavailable, fell back to spectral baseline</>
-              )}
-            </p>
-
-            <label
+        {page === "accuracy" ? (
+          <AccuracyPage />
+        ) : page === "settings" ? (
+          <SettingsPage />
+        ) : (
+          <>
+            <aside
+              ref={leftPanelRef}
+              className="ts-scroll"
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                marginTop: "12px",
-                fontSize: "var(--font-size-xs)",
-                cursor: "pointer",
+                width: "300px",
+                flexShrink: 0,
+                background: "var(--color-panel)",
+                borderRight: "1px solid var(--color-border)",
+                padding: "4px 16px",
+                overflowY: "auto",
               }}
             >
-              <input
-                type="checkbox"
-                checked={showRejected}
-                onChange={(e) => setShowRejected(e.target.checked)}
-              />
-              Show rejected changes ({ready.analysis.rejected_count})
-            </label>
+              <CollapsibleSection
+                ref={analysisSectionRef}
+                title="New analysis"
+                open={openSections.analysis}
+                onToggle={() => toggleSection("analysis")}
+              >
+                <FileDropSlot label="Before image (GeoTIFF)" file={beforeFile} onChange={setBeforeFile} />
+                <FileDropSlot label="After image (GeoTIFF)" file={afterFile} onChange={setAfterFile} />
 
-            <h2 style={{ fontSize: "var(--font-size-sm)", margin: "12px 0 6px", color: "var(--color-text-secondary)" }}>
-              Map layers
-            </h2>
-            <LayerToggle
-              label="Population"
-              checked={showPopulation}
-              onChange={setShowPopulation}
-              disabled={!ready.analysis.population_available}
-              note={!ready.analysis.population_available ? "no data for this scene" : undefined}
-            />
-            <LayerToggle label="Facilities" checked={showFacilities} onChange={setShowFacilities} />
-            <LayerToggle label="Roads" checked={showRoads} onChange={setShowRoads} />
-
-            {mode === "prevention" && (
-              <div style={{ marginTop: "12px" }}>
                 <button
-                  onClick={() => setDrawMode((d) => !d)}
-                  style={{
-                    width: "100%",
-                    padding: "6px 8px",
-                    fontSize: "var(--font-size-xs)",
-                    borderRadius: "var(--radius-sm)",
-                    border: `1px solid ${drawMode ? "var(--color-accent)" : "var(--color-border)"}`,
-                    background: drawMode ? "var(--color-accent)" : "white",
-                    color: drawMode ? "white" : "var(--color-text)",
-                    cursor: "pointer",
-                  }}
+                  className="ts-btn ts-btn-primary"
+                  onClick={handleSubmit}
+                  disabled={!beforeFile || !afterFile || state.phase === "uploading" || state.phase === "processing"}
+                  style={{ width: "100%", marginTop: "4px" }}
                 >
-                  {drawMode ? "Cancel drawing" : hazardZone ? "Redraw hazard zone" : "Draw hazard zone"}
+                  {state.phase === "uploading" || state.phase === "processing" ? "Processing…" : "Run analysis"}
                 </button>
-                {hazardZoneStatus && (
-                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "6px" }}>
-                    {hazardZoneStatus}
+
+                {state.phase === "error" && (
+                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-danger)", marginTop: "10px" }}>
+                    {state.message}
                   </p>
                 )}
-              </div>
-            )}
 
-            <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-              <a
-                href={exportUrl(ready.analysis.id, "geojson")}
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  padding: "6px 8px",
-                  fontSize: "var(--font-size-xs)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  color: "var(--color-text)",
-                  textDecoration: "none",
-                }}
-              >
-                Export GeoJSON
-              </a>
-              <a
-                href={exportUrl(ready.analysis.id, "gpkg")}
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  padding: "6px 8px",
-                  fontSize: "var(--font-size-xs)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  color: "var(--color-text)",
-                  textDecoration: "none",
-                }}
-              >
-                Export GPKG
-              </a>
-            </div>
-          </section>
-        )}
-
-        {ready && ready.analysis.quality_report && (
-          <section style={{ marginTop: "16px" }}>
-            <h2 style={{ fontSize: "var(--font-size-sm)", margin: "0 0 8px", color: "var(--color-text-secondary)" }}>
-              Quality report
-            </h2>
-            <QualityRow label="Cloud (before)" value={`${ready.analysis.quality_report.before_cloud_pct.toFixed(1)}%`} />
-            <QualityRow label="Cloud (after)" value={`${ready.analysis.quality_report.after_cloud_pct.toFixed(1)}%`} />
-            <QualityRow label="Cloud method" value={ready.analysis.quality_report.cloud_method} />
-            <QualityRow label="Misalignment" value={`${ready.analysis.quality_report.misalignment_px.toFixed(1)} px`} />
-            <QualityRow label="Resolution" value={`${ready.analysis.quality_report.resolution_m.toFixed(1)} m`} />
-            <QualityRow label="Bands" value={String(ready.analysis.quality_report.band_count)} />
-          </section>
-        )}
-      </aside>
-
-      <main style={{ flex: 1, position: "relative", background: "var(--color-bg)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-        <div style={{ flex: 1, position: "relative", minWidth: 0, height: "100%" }}>
-          {ready && ready.analysis.bounds ? (
-            <CompareMap
-              beforeUrl={imageryUrl(ready.analysis.id, "before")}
-              afterUrl={imageryUrl(ready.analysis.id, "after")}
-              bounds={ready.analysis.bounds}
-              geojson={ready.geojson}
-              selectedId={selected ? String(selected.properties?.id) : null}
-              zoomToId={zoomToId}
-              hoveredId={hoveredId}
-              onPolygonClick={(f) => {
-                setSelected(f);
-                setRightPanelOpen(true);
-              }}
-              onPolygonHover={setHoveredId}
-              showRejected={showRejected}
-              facilities={facilities}
-              showFacilities={showFacilities}
-              showRoads={showRoads}
-              populationUrl={ready.analysis.population_available ? populationOverlayUrl(ready.analysis.id) : null}
-              showPopulation={showPopulation}
-              drawMode={drawMode}
-              onDrawComplete={handleDrawComplete}
-              hazardZone={hazardZone}
-            />
-          ) : (
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "column",
-                color: "var(--color-text-secondary)",
-                fontSize: "var(--font-size-sm)",
-              }}
-            >
-              <p>Upload a before/after GeoTIFF pair to begin.</p>
-            </div>
-          )}
-        </div>
-
-        {ready && (
-          <div style={{ display: "flex", height: "100%", flexShrink: 0 }}>
-            <button
-              onClick={() => setRightPanelOpen((o) => !o)}
-              style={{
-                width: "32px",
-                border: "none",
-                borderLeft: "1px solid var(--color-border)",
-                background: "var(--color-panel)",
-                color: "var(--color-text-secondary)",
-                cursor: "pointer",
-                fontSize: "var(--font-size-xs)",
-                writingMode: "vertical-rl",
-                textOrientation: "mixed",
-                padding: "12px 0",
-                whiteSpace: "nowrap",
-              }}
-              title={rightPanelOpen ? "Collapse panel" : "Expand priority queue"}
-            >
-              {rightPanelOpen ? "Close ✕" : `Priority (${ready.analysis.kept_count})`}
-            </button>
-            {rightPanelOpen && (
-              <div style={{ width: "360px", height: "100%", flexShrink: 0 }}>
-                {selected ? (
-                  <PolygonPanel
-                    feature={selected}
-                    onClose={() => {
-                      setSelected(null);
-                      setZoomToId(null);
-                    }}
-                  />
-                ) : (
-                  <PriorityPanel
-                    geojson={ready.geojson}
-                    onSelect={handleSelectFromPriority}
-                    hoveredId={hoveredId}
-                    onHoverRow={setHoveredId}
-                  />
+                {ready && (
+                  <div style={{ marginTop: "12px" }}>
+                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: 0 }}>
+                      {ready.analysis.summary_line}
+                    </p>
+                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", marginTop: "4px" }}>
+                      Pixel size ~<span className="mono">{ready.analysis.pixel_size_m?.toFixed(1)}</span> m
+                      {ready.analysis.engine_fell_back && (
+                        <> — fell back to spectral baseline</>
+                      )}
+                    </p>
+                  </div>
                 )}
-              </div>
-            )}
-          </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection title="Engine" open={openSections.engine} onToggle={() => toggleSection("engine")}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "var(--color-text-secondary)" }}>
+                  <Cpu size={13} />
+                  <span style={{ fontSize: "var(--font-size-xs)" }}>Detection engine</span>
+                </div>
+                <select className="ts-select" value={engine} onChange={(e) => setEngine(e.target.value as EngineChoice)}>
+                  {ENGINE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </CollapsibleSection>
+
+              {ready && (
+                <CollapsibleSection
+                  ref={layersSectionRef}
+                  title="Map layers"
+                  open={openSections.layers}
+                  onToggle={() => toggleSection("layers")}
+                >
+                  <LayerRow label="Rejected changes" count={ready.analysis.rejected_count} checked={showRejected} onChange={setShowRejected} />
+                  <LayerRow
+                    label="Population"
+                    checked={showPopulation}
+                    onChange={setShowPopulation}
+                    disabled={!ready.analysis.population_available}
+                    note={!ready.analysis.population_available ? "no data" : undefined}
+                    color="var(--color-severity-medium)"
+                  />
+                  <LayerRow label="Facilities" checked={showFacilities} onChange={setShowFacilities} color="var(--color-severity-high)" />
+                  <LayerRow label="Roads" checked={showRoads} onChange={setShowRoads} color="var(--color-text-secondary)" />
+
+                  {mode === "prevention" && (
+                    <div style={{ marginTop: "14px" }}>
+                      <button
+                        className={drawMode ? "ts-btn ts-btn-primary" : "ts-btn"}
+                        onClick={() => setDrawMode((d) => !d)}
+                        style={{ width: "100%" }}
+                      >
+                        {drawMode ? "Cancel drawing" : hazardZone ? "Redraw hazard zone" : "Draw hazard zone"}
+                      </button>
+                      {hazardZoneStatus && (
+                        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "8px", lineHeight: 1.4 }}>
+                          {hazardZoneStatus}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CollapsibleSection>
+              )}
+
+              {ready?.analysis.quality_report && (
+                <CollapsibleSection title="Quality report" open={openSections.quality} onToggle={() => toggleSection("quality")}>
+                  {ready.analysis.quality_report.warnings.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        padding: "8px 10px",
+                        marginBottom: "10px",
+                        background: "var(--color-warning-soft)",
+                        border: "1px solid rgba(245,165,36,0.3)",
+                        borderRadius: "var(--radius-sm)",
+                        fontSize: "var(--font-size-xs)",
+                        color: "var(--color-warning)",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: "1px" }} />
+                      <div>
+                        {ready.analysis.quality_report.warnings.map((w, i) => (
+                          <div key={i}>{w}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <QualityRow label="Cloud (before)" value={`${ready.analysis.quality_report.before_cloud_pct.toFixed(1)}%`} warn={ready.analysis.quality_report.before_cloud_pct > 20} />
+                  <QualityRow label="Cloud (after)" value={`${ready.analysis.quality_report.after_cloud_pct.toFixed(1)}%`} warn={ready.analysis.quality_report.after_cloud_pct > 20} />
+                  <QualityRow label="Cloud method" value={ready.analysis.quality_report.cloud_method} />
+                  <QualityRow label="Misalignment" value={`${ready.analysis.quality_report.misalignment_px.toFixed(1)} px`} warn={ready.analysis.quality_report.misalignment_px > 1} />
+                  <QualityRow label="Resolution" value={`${ready.analysis.quality_report.resolution_m.toFixed(1)} m`} />
+                  <QualityRow label="Bands" value={String(ready.analysis.quality_report.band_count)} />
+                </CollapsibleSection>
+              )}
+            </aside>
+
+            <main style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {state.phase === "empty" && (
+                <Hero onLoadDemo={handleLoadDemo} onUploadOwn={handleUploadOwnClick} demoLoading={demoLoading} demoError={demoError} />
+              )}
+              {(state.phase === "uploading" || state.phase === "processing") && (
+                <ProcessingCard step={state.phase === "processing" ? state.step : "validating"} steps={state.phase === "processing" ? state.steps : []} />
+              )}
+              {state.phase === "error" && (
+                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div className="ts-card" style={{ padding: "24px", maxWidth: "400px", textAlign: "center" }}>
+                    <AlertTriangle size={20} color="var(--color-danger)" style={{ marginBottom: "8px" }} />
+                    <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text)" }}>{state.message}</p>
+                  </div>
+                </div>
+              )}
+
+              {ready && (
+                <>
+                  <KpiStrip analysis={ready.analysis} geojson={ready.geojson} />
+                  <div style={{ flex: 1, display: "flex", minHeight: 0, padding: "0 16px 16px" }}>
+                    <div style={{ flex: 1, position: "relative", minWidth: 0, borderRadius: "var(--radius-md)", overflow: "hidden", border: "1px solid var(--color-border)" }}>
+                      {ready.analysis.bounds && (
+                      <CompareMap
+                        beforeUrl={imageryUrl(ready.analysis.id, "before")}
+                        afterUrl={imageryUrl(ready.analysis.id, "after")}
+                        bounds={ready.analysis.bounds}
+                        geojson={ready.geojson}
+                        selectedId={selected ? String(selected.properties?.id) : null}
+                        zoomToId={zoomToId}
+                        hoveredId={hoveredId}
+                        onPolygonClick={(f) => {
+                          setSelected(f);
+                          setRightPanelOpen(true);
+                          setRightPanelTab("details");
+                        }}
+                        onPolygonHover={setHoveredId}
+                        showRejected={showRejected}
+                        facilities={facilities}
+                        showFacilities={showFacilities}
+                        showRoads={showRoads}
+                        populationUrl={ready.analysis.population_available ? populationOverlayUrl(ready.analysis.id) : null}
+                        showPopulation={showPopulation}
+                        drawMode={drawMode}
+                        onDrawComplete={handleDrawComplete}
+                        hazardZone={hazardZone}
+                      />
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", flexShrink: 0 }}>
+                      <button
+                        onClick={() => setRightPanelOpen((o) => !o)}
+                        className="ts-btn-ghost"
+                        style={{
+                          width: "28px",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          fontSize: "var(--font-size-xs)",
+                          color: "var(--color-text-secondary)",
+                          writingMode: "vertical-rl",
+                          textOrientation: "mixed",
+                          padding: "12px 0",
+                          whiteSpace: "nowrap",
+                          marginLeft: "8px",
+                        }}
+                        title={rightPanelOpen ? "Collapse panel" : "Expand panel"}
+                      >
+                        {rightPanelOpen ? "Close" : `Priority (${ready.analysis.kept_count})`}
+                      </button>
+
+                      {rightPanelOpen && (
+                        <div
+                          className="ts-card ts-slide-in-right"
+                          style={{ width: "340px", marginLeft: "8px", display: "flex", flexDirection: "column", overflow: "hidden" }}
+                        >
+                          <div style={{ display: "flex", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
+                            <TabButton active={rightPanelTab === "priority"} onClick={() => setRightPanelTab("priority")}>
+                              Priority queue
+                            </TabButton>
+                            <TabButton active={rightPanelTab === "details"} onClick={() => setRightPanelTab("details")}>
+                              Change details
+                            </TabButton>
+                          </div>
+                          <div className="ts-scroll" style={{ flex: 1, overflowY: "auto" }}>
+                            {rightPanelTab === "details" ? (
+                              selected ? (
+                                <PolygonPanel
+                                  feature={selected}
+                                  onClose={() => {
+                                    setSelected(null);
+                                    setZoomToId(null);
+                                    setRightPanelTab("priority");
+                                  }}
+                                />
+                              ) : (
+                                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--color-text-faint)", fontSize: "var(--font-size-xs)" }}>
+                                  Select a change on the map or priority list.
+                                </div>
+                              )
+                            ) : (
+                              <PriorityPanel
+                                geojson={ready.geojson}
+                                onSelect={handleSelectFromPriority}
+                                hoveredId={hoveredId}
+                                onHoverRow={setHoveredId}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </main>
+          </>
         )}
       </div>
-
-      {ready && <SummaryStrip analysis={ready.analysis} />}
-      </main>
-        </>
-      )}
     </div>
   );
 }
 
-function SummaryStrip({ analysis }: { analysis: AnalysisStatus }) {
-  const areaChangedCount = analysis.kept_count;
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <div
+    <button
+      onClick={onClick}
       style={{
-        flexShrink: 0,
-        display: "flex",
-        gap: "24px",
-        padding: "8px 16px",
-        borderTop: "1px solid var(--color-border)",
-        background: "var(--color-panel)",
+        flex: 1,
+        border: "none",
+        borderBottom: active ? "2px solid var(--color-accent)" : "2px solid transparent",
+        background: "transparent",
+        color: active ? "var(--color-text)" : "var(--color-text-secondary)",
+        fontWeight: active ? 600 : 500,
         fontSize: "var(--font-size-xs)",
+        padding: "11px 0",
+        cursor: "pointer",
+        transition: "color var(--transition-fast), border-color var(--transition-fast)",
       }}
     >
-      <SummaryStat label="Kept changes" value={String(areaChangedCount)} />
-      <SummaryStat label="Rejected" value={String(analysis.rejected_count)} />
-      <SummaryStat
-        label="People in affected areas"
-        value={
-          analysis.population_available && analysis.total_population_buffer_est != null
-            ? `~${Math.round(analysis.total_population_buffer_est).toLocaleString()} (estimate)`
-            : "no data"
-        }
-      />
-      <SummaryStat
-        label="Priority areas near a facility"
-        value={analysis.near_facility_count != null ? String(analysis.near_facility_count) : "—"}
-      />
-    </div>
+      {children}
+    </button>
   );
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-      <span className="mono" style={{ fontWeight: 600 }}>{value}</span>
-      <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
-    </div>
-  );
-}
+const LAYER_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  "Rejected changes": X,
+  Population: Landmark,
+  Facilities: Hospital,
+  Roads: Route,
+};
 
-function LayerToggle({
+function LayerRow({
   label,
+  count,
   checked,
   onChange,
   disabled,
   note,
+  color,
 }: {
   label: string;
+  count?: number;
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
   note?: string;
+  color?: string;
 }) {
-  return (
-    <label
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "6px",
-        padding: "2px 0",
-        fontSize: "var(--font-size-xs)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-      {note && <span style={{ color: "var(--color-text-secondary)" }}>({note})</span>}
-    </label>
-  );
-}
-
-function QualityRow({ label, value }: { label: string; value: string }) {
+  const Icon = LAYER_ICONS[label] ?? MapPin;
   return (
     <div
       style={{
         display: "flex",
+        alignItems: "center",
         justifyContent: "space-between",
-        padding: "3px 0",
-        fontSize: "var(--font-size-xs)",
+        padding: "7px 0",
+        opacity: disabled ? 0.5 : 1,
       }}
     >
-      <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
-      <span className="mono">{value}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <Icon size={13} color={color ?? "var(--color-text-secondary)"} />
+        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text)" }}>
+          {label}
+          {count != null && <span style={{ color: "var(--color-text-faint)" }}> ({count})</span>}
+          {note && <span style={{ color: "var(--color-text-faint)" }}> · {note}</span>}
+        </span>
+      </div>
+      <Switch checked={checked} onChange={onChange} disabled={disabled} />
+    </div>
+  );
+}
+
+function QualityRow({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <span className={`ts-status-dot ${warn ? "warn" : "ok"}`} />
+        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>{label}</span>
+      </div>
+      <span className="mono" style={{ fontSize: "var(--font-size-xs)" }}>
+        {value}
+      </span>
     </div>
   );
 }

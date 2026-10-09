@@ -1,34 +1,72 @@
 :root {
-  --color-bg: #f7f6f2;
-  --color-panel: #ffffff;
-  --color-text: #1f2328;
-  --color-text-secondary: #5b6169;
-  --color-border: #dcd9d0;
+  /* Surfaces -- layered dark ink, deepest to most raised */
+  --color-bg: #0b1215;
+  --color-panel: #111b1f;
+  --color-card: #18252a;
+  --color-card-hover: #1d2d33;
+  --color-border: #22343a;
+  --color-border-strong: #2c4149;
 
-  --color-accent: #2f5d46;
-  --color-accent-hover: #264a39;
+  /* Text */
+  --color-text: #e6edef;
+  --color-text-secondary: #8fa3a8;
+  --color-text-faint: #5f757a;
 
-  --color-severity-high: #c0392b;
-  --color-severity-medium: #e67e22;
-  --color-severity-low: #f1c40f;
-  --color-rejected: #8a8f98;
+  /* Signature accent -- teal/cyan */
+  --color-accent: #2fd3c1;
+  --color-accent-hover: #4fe0d0;
+  --color-accent-soft: rgba(47, 211, 193, 0.12);
+  --color-accent-border: rgba(47, 211, 193, 0.4);
 
-  --color-danger: #c0392b;
-  --color-warning: #b8860b;
+  /* Severity -- fixed meaning, never reused for anything else */
+  --color-severity-high: #e5484d;
+  --color-severity-medium: #f5a524;
+  --color-severity-low: #f2d45c;
+  --color-rejected: #6b7d82;
+  --color-needs-review: #b8c4c7;
 
-  --radius-sm: 2px;
-  --radius-md: 4px;
+  --color-danger: #e5484d;
+  --color-danger-soft: rgba(229, 72, 77, 0.12);
+  --color-warning: #f5a524;
+  --color-warning-soft: rgba(245, 165, 36, 0.12);
+  --color-success: #2fd3c1;
 
-  --font-ui: "Inter", "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
 
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-ring: 0 0 0 3px var(--color-accent-soft);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --blur-panel: blur(14px);
+
+  /* Type */
+  --font-ui: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+
+  --font-size-xxs: 11px;
   --font-size-xs: 12px;
   --font-size-sm: 13px;
   --font-size-base: 14px;
   --font-size-lg: 16px;
   --font-size-xl: 20px;
+  --font-size-2xl: 28px;
+  --font-size-3xl: 38px;
 
-  --transition-fast: 150ms ease;
+  --tracking-label: 0.07em;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 250ms;
+  --transition-fast: var(--duration-fast) var(--ease-out);
+  --transition-base: var(--duration-base) var(--ease-out);
+  --transition-slow: var(--duration-slow) var(--ease-out);
 }
 
 * {
@@ -57,6 +95,39 @@ code,
   font-variant-numeric: tabular-nums;
 }
 
-button {
+button,
+select,
+input {
   font-family: var(--font-ui);
+}
+
+/* Thin, dark-aware scrollbars for panels */
+.ts-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+.ts-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ts-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ts-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+.ts-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

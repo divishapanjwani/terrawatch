@@ -24,6 +24,15 @@ backend/models/*
 frontend/node_modules/
 frontend/dist/
 
+# "Load Wayanad demo" button assets -- same raw GeoTIFFs as
+# backend/data/wayanad/, copied here so the browser can fetch them as
+# static files and feed them through the normal upload flow with no new
+# backend route. ~12 MB, gitignored like the backend copy; copy them over
+# locally (cp backend/data/wayanad/{before,after}.tif frontend/public/demo/
+# wayanad_{before,after}.tif) to use the demo button. Hidden/disabled
+# gracefully if missing.
+frontend/public/demo/*.tif
+
 # Playwright artifacts
 frontend/test-results/
 frontend/playwright-report/
