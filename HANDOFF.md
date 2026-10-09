@@ -119,9 +119,38 @@ polygon (1.56M m², centroid 11.486°N/76.152°E, right at Mundakkai) stays
 `status: kept`. Final count: 187 candidates → 179 kept, 8 rejected (cloud:
 7, vegetation_seasonal: 1).
 
-Also not built yet: population/facility/priority-queue impact analysis
-(Phase 5, next), auto-fetch UI (Phase 6), LLM summaries/ask-the-map
-(Phase 7), reports/alerts (Phase 8).
+Also not built yet: population impact estimate (full Phase 5), auto-fetch
+UI (Phase 6), LLM summaries/ask-the-map (Phase 7), reports/alerts
+(Phase 8).
+
+### Phase 5 (mini, branch `phase-5-mini`): OSM facilities + priority queue
+
+Scoped-down slice of Phase 5 (no population/routes/hazard zones yet,
+just facility proximity + priority ranking):
+
+- `app/impact/facilities.py`: hospitals/clinics/schools from OSM via the
+  Overpass API (raw `requests`, not osmnx -- lighter dependency), cached
+  to disk per buffered bbox (`OSM_FACILITY_BUFFER_DEG = 0.15`, ~16 km, so
+  a tight rural scene still finds its real nearest hospital). One retry
+  on failure (`overpass-api.de` is a shared public instance that 504s
+  under load sometimes -- confirmed transient, not a code bug, while
+  building this).
+- `app/pipeline/priority.py`: `nearest_hospital_m`/`nearest_school_m` per
+  kept polygon (clinics counted as hospitals), computed in the scene's
+  projected area CRS. `priority_score` = weighted severity + confidence +
+  facility closeness (weights in `app/config.py`), `priority_rank`,
+  plain-language `priority_reason` (e.g. "High severity; 300 m from a
+  school"). Wired into `run.py` as a new `impact_analysis` progress step,
+  right after severity scoring; exported to GeoJSON/GPKG.
+- Frontend: new `PriorityPanel.tsx` (right panel, ranked list with rank/
+  type/area/nearest-facility/reason) shown whenever nothing is selected;
+  clicking a row zooms the map to that polygon (`CompareMap`'s new
+  `zoomToId` prop) and opens `PolygonPanel`, which now also shows nearest
+  hospital/school.
+- Verified on Wayanad (spectral baseline engine): 7 kept polygons ranked
+  #1-7, real distances (e.g. rank #1, 10,800 m², "High severity; 5520 m
+  from a school"), confirmed via a Playwright-driven browser run with
+  screenshots. Did not touch Phase 4 filter/detection logic.
 
 ## Setup from a fresh clone
 
