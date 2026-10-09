@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db, DATA_DIR
 from app.api.analyses import router as analyses_router
+from app.api.settings import router as settings_router
 
 app = FastAPI(title="TerraWatch API")
 
@@ -19,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(analyses_router)
+app.include_router(settings_router)
 
 
 @app.on_event("startup")

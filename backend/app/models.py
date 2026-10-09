@@ -38,4 +38,10 @@ class Analysis(SQLModel, table=True):
     geojson_path: Optional[str] = Field(default=None)
     gpkg_path: Optional[str] = Field(default=None)
 
+    # Phase 5 impact summary (app/pipeline/run.py, app/impact/population.py)
+    population_available: bool = Field(default=False)
+    total_population_buffer_est: Optional[float] = Field(default=None)
+    near_facility_count: Optional[int] = Field(default=None)
+    hazard_zone_geojson: Optional[str] = Field(default=None)  # user-provided zone, Prevention mode
+
     created_at: datetime = Field(default_factory=utcnow)

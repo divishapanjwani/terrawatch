@@ -49,6 +49,11 @@ class PolygonResult:
     nearest_hospital_name: Optional[str] = None
     nearest_school_m: Optional[float] = None
     nearest_school_name: Optional[str] = None
+    nearest_main_road_m: Optional[float] = None
+    nearby_facilities_json: Optional[str] = None
+    population_est: Optional[float] = None
+    population_buffer_est: Optional[float] = None
+    in_hazard_zone: bool = False
     priority_score: Optional[float] = None
     priority_rank: Optional[int] = None
     priority_reason: Optional[str] = None

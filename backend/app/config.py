@@ -1,6 +1,7 @@
 """Tunable pipeline defaults. Kept in one place so the UI can display the
 exact values used (e.g. the severity formula tooltip) and so they're easy
 to change without hunting through the pipeline code."""
+from pathlib import Path
 
 # Binary threshold applied to the engine's change-probability map.
 DETECTION_THRESHOLD = 0.5
@@ -156,8 +157,43 @@ OSM_FACILITY_BUFFER_DEG = 0.15
 #                 + w_school * closeness(nearest_school_m)
 # closeness(d) = clamp(1 - d / PRIORITY_PROXIMITY_MAX_M, 0, 1): 1.0 right next
 # to a facility, 0 at or beyond PRIORITY_PROXIMITY_MAX_M.
-PRIORITY_WEIGHT_SEVERITY = 0.5
-PRIORITY_WEIGHT_CONFIDENCE = 0.2
-PRIORITY_WEIGHT_HOSPITAL_PROXIMITY = 0.2
-PRIORITY_WEIGHT_SCHOOL_PROXIMITY = 0.1
 PRIORITY_PROXIMITY_MAX_M = 2000.0
+
+# ---------------------------------------------------------------------------
+# Population (app/impact/population.py) -- WorldPop raster, India-wide,
+# covers both demo scenes. Gitignored; see scripts/download_population.py.
+# ---------------------------------------------------------------------------
+POPULATION_RASTER_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "population" / "ind_ppp_2020_1km_Aggregated_UNadj.tif"
+)
+POPULATION_BUFFER_M = 250.0
+
+# ---------------------------------------------------------------------------
+# OSM roads + shelters (app/impact/facilities.py)
+# ---------------------------------------------------------------------------
+
+# Main road classes queried alongside hospitals/clinics/schools/shelters.
+OSM_MAIN_ROAD_HIGHWAY_TYPES = ["motorway", "trunk", "primary", "secondary"]
+
+# Radius for the "nearby facilities" list shown in polygon details.
+FACILITY_LIST_MAX_DISTANCE_M = 1000.0
+FACILITY_LIST_MAX_ITEMS = 5
+
+# ---------------------------------------------------------------------------
+# Priority score v2 (app/pipeline/priority.py) -- full Phase 5 formula:
+# priority = w1*sev_score + w2*norm(population_est) + w3*facility_proximity
+#            + w4*confidence + w5*route_impact (route_impact reserved, Phase 7)
+# facility_proximity = closer of hospital/school closeness (see
+# PRIORITY_PROXIMITY_MAX_M above). Editable via scripts/settings -- see
+# app/settings.py; these are the defaults for new analyses.
+# ---------------------------------------------------------------------------
+PRIORITY_W1_SEVERITY = 0.35
+PRIORITY_W2_POPULATION = 0.25
+PRIORITY_W3_FACILITY_PROXIMITY = 0.2
+PRIORITY_W4_CONFIDENCE = 0.2
+PRIORITY_W5_ROUTE_IMPACT = 0.0  # reserved for Phase 7
+
+# ---------------------------------------------------------------------------
+# Prevention mode: hazard zones (app/pipeline/priority.py, app/api/analyses.py)
+# ---------------------------------------------------------------------------
+HAZARD_ZONE_WORDING = "New structure detected in hazard zone — verify"
