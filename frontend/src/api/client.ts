@@ -9,6 +9,8 @@ export interface Bounds {
   north: number;
 }
 
+export type EngineChoice = "auto" | "tinycd" | "engine2" | "spectral";
+
 export interface AnalysisStatus {
   id: string;
   mode: string;
@@ -17,7 +19,11 @@ export interface AnalysisStatus {
   progress_steps: string[];
   error_message: string | null;
   bounds: Bounds | null;
+  engine_choice: EngineChoice;
   engine: string | null;
+  engine_key: string | null;
+  engine_fell_back: boolean;
+  pixel_size_m: number | null;
   polygon_count: number;
   created_at: string;
 }
@@ -25,12 +31,14 @@ export interface AnalysisStatus {
 export async function createAnalysis(
   before: File,
   after: File,
-  mode: string
+  mode: string,
+  engine: EngineChoice = "auto"
 ): Promise<{ analysis_id: string }> {
   const form = new FormData();
   form.append("before", before);
   form.append("after", after);
   form.append("mode", mode);
+  form.append("engine", engine);
 
   const res = await fetch(`${API_BASE}/api/analyses`, {
     method: "POST",

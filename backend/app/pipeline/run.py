@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Callable
 
 from app import config
-from app.engines import spectral, siamese
+from app.engines import select, spectral
 from app.engines.common import compute_magnitude_map
 from app.geo.align import load_aligned_pair
 from app.geo.export import save_geojson, save_gpkg
@@ -20,23 +20,25 @@ def run_pipeline(
     before_png: Path,
     after_png: Path,
     progress_cb: Callable[[str], None],
+    engine_choice: str = "auto",
 ) -> dict:
     progress_cb("validating")
     aligned = load_aligned_pair(before_path, after_path)
     bounds = generate_preview_pair(aligned, str(before_png), str(after_png))
 
     progress_cb("detecting")
-    engine_used = None
-    prob_map = None
-    if siamese.is_available():
-        try:
-            prob_map = siamese.predict(aligned)
-            engine_used = siamese.ENGINE_NAME
-        except Exception:
-            prob_map = None
-    if prob_map is None:
+    try:
+        prob_map, resolution = select.predict(aligned, forced=engine_choice)
+    except Exception:
+        # The chosen engine failed at runtime (not just "unavailable") -- hard
+        # fallback to the spectral baseline so the map is never empty because
+        # of a crash in a trained model.
         prob_map = spectral.predict(aligned)
-        engine_used = spectral.ENGINE_NAME
+        resolution = select.EngineResolution(
+            "spectral", spectral.ENGINE_NAME, engine_choice,
+            select.rule_based_choice(aligned), select.pixel_size_m(aligned), fell_back=True,
+        )
+    engine_used = resolution.name
 
     magnitude_map = compute_magnitude_map(aligned)
 
@@ -68,6 +70,10 @@ def run_pipeline(
     return {
         "bounds": bounds,
         "engine": engine_used,
+        "engine_key": resolution.key,
+        "engine_requested": resolution.requested,
+        "engine_fell_back": resolution.fell_back,
+        "pixel_size_m": resolution.pixel_size_m,
         "polygon_count": len(polygons),
         "geojson_path": str(geojson_path),
         "gpkg_path": str(gpkg_path),

@@ -6,6 +6,7 @@ import "./App.css";
 import CompareMap from "./map/CompareMap";
 import FileDropSlot from "./panels/FileDropSlot";
 import PolygonPanel from "./panels/PolygonPanel";
+import AccuracyPage from "./pages/AccuracyPage";
 import {
   createAnalysis,
   exportUrl,
@@ -13,7 +14,7 @@ import {
   imageryUrl,
   pollUntilReady,
 } from "./api/client";
-import type { AnalysisStatus } from "./api/client";
+import type { AnalysisStatus, EngineChoice } from "./api/client";
 
 type AppState =
   | { phase: "empty" }
@@ -30,11 +31,26 @@ const STEP_LABELS: Record<string, string> = {
   done: "Done",
 };
 
+const ENGINE_OPTIONS: { value: EngineChoice; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "tinycd", label: "TinyCD" },
+  { value: "engine2", label: "Engine 2" },
+  { value: "spectral", label: "Spectral baseline" },
+];
+
+const ENGINE_NAME_LABEL: Record<string, string> = {
+  siamese_levir_cd: "TinyCD",
+  unet_oscd: "Engine 2 (U-Net)",
+  spectral_baseline: "spectral baseline",
+};
+
 export default function App() {
+  const [page, setPage] = useState<"analysis" | "accuracy">("analysis");
   const [state, setState] = useState<AppState>({ phase: "empty" });
   const [beforeFile, setBeforeFile] = useState<File | null>(null);
   const [afterFile, setAfterFile] = useState<File | null>(null);
   const [mode, setMode] = useState<"disaster" | "prevention">("disaster");
+  const [engine, setEngine] = useState<EngineChoice>("auto");
   const [selected, setSelected] = useState<MapGeoJSONFeature | null>(null);
 
   async function handleSubmit() {
@@ -42,7 +58,7 @@ export default function App() {
     setSelected(null);
     setState({ phase: "uploading" });
     try {
-      const { analysis_id } = await createAnalysis(beforeFile, afterFile, mode);
+      const { analysis_id } = await createAnalysis(beforeFile, afterFile, mode, engine);
       setState({ phase: "processing", id: analysis_id, step: "validating", steps: [] });
       const analysis = await pollUntilReady(analysis_id, (status) => {
         setState({
@@ -88,8 +104,44 @@ export default function App() {
           }}
           title="TerraWatch"
         />
+        <button
+          onClick={() => setPage("analysis")}
+          title="New Analysis"
+          style={{
+            width: "32px",
+            height: "32px",
+            border: "none",
+            borderRadius: "var(--radius-sm)",
+            background: page === "analysis" ? "var(--color-accent)" : "transparent",
+            color: page === "analysis" ? "white" : "var(--color-text-secondary)",
+            cursor: "pointer",
+            fontSize: "var(--font-size-xs)",
+          }}
+        >
+          Map
+        </button>
+        <button
+          onClick={() => setPage("accuracy")}
+          title="Accuracy"
+          style={{
+            width: "32px",
+            height: "32px",
+            border: "none",
+            borderRadius: "var(--radius-sm)",
+            background: page === "accuracy" ? "var(--color-accent)" : "transparent",
+            color: page === "accuracy" ? "white" : "var(--color-text-secondary)",
+            cursor: "pointer",
+            fontSize: "var(--font-size-xs)",
+          }}
+        >
+          Acc.
+        </button>
       </nav>
 
+      {page === "accuracy" ? (
+        <AccuracyPage />
+      ) : (
+        <>
       <aside
         style={{
           width: "320px",
@@ -136,6 +188,30 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          <label style={{ display: "block", fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>
+            Engine
+          </label>
+          <select
+            value={engine}
+            onChange={(e) => setEngine(e.target.value as EngineChoice)}
+            style={{
+              width: "100%",
+              padding: "6px 8px",
+              fontSize: "var(--font-size-xs)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border)",
+              background: "white",
+              color: "var(--color-text)",
+              marginBottom: "16px",
+            }}
+          >
+            {ENGINE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
 
           <button
             onClick={handleSubmit}
@@ -202,7 +278,17 @@ export default function App() {
           <section>
             <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
               Analysis <span className="mono">{ready.analysis.id}</span> ready — {ready.analysis.polygon_count}{" "}
-              change{ready.analysis.polygon_count === 1 ? "" : "s"} found ({ready.analysis.engine}).
+              change{ready.analysis.polygon_count === 1 ? "" : "s"} found (
+              {ENGINE_NAME_LABEL[ready.analysis.engine ?? ""] ?? ready.analysis.engine}).
+            </p>
+            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "4px" }}>
+              Pixel size ~<span className="mono">{ready.analysis.pixel_size_m?.toFixed(1)}</span> m
+              {ready.analysis.engine_fell_back && ready.analysis.engine_choice === "auto" && (
+                <> — requested engine unavailable, fell back automatically</>
+              )}
+              {ready.analysis.engine_fell_back && ready.analysis.engine_choice !== "auto" && (
+                <> — "{ready.analysis.engine_choice}" unavailable, fell back to spectral baseline</>
+              )}
             </p>
             <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
               <a
@@ -267,6 +353,8 @@ export default function App() {
         )}
         {ready && <PolygonPanel feature={selected} onClose={() => setSelected(null)} />}
       </main>
+        </>
+      )}
     </div>
   );
 }

@@ -24,7 +24,11 @@ class Analysis(SQLModel, table=True):
     # (before/after previews now share identical bounds — see app/geo/align.py)
     bounds: Optional[str] = Field(default=None)
 
-    engine: Optional[str] = Field(default=None)
+    engine_choice: str = Field(default="auto")  # auto | tinycd | engine2 | spectral (requested)
+    engine: Optional[str] = Field(default=None)  # engine actually used (ENGINE_NAME)
+    engine_key: Optional[str] = Field(default=None)  # tinycd | engine2 | spectral (actually used)
+    engine_fell_back: bool = Field(default=False)
+    pixel_size_m: Optional[float] = Field(default=None)
     polygon_count: int = Field(default=0)
     geojson_path: Optional[str] = Field(default=None)
     gpkg_path: Optional[str] = Field(default=None)

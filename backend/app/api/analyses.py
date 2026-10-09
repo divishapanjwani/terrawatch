@@ -13,6 +13,7 @@ from app.db import get_session, UPLOADS_DIR, ANALYSES_DIR
 from app.models import Analysis
 from app.geo.preview import read_metadata
 from app.pipeline.run import run_pipeline
+from app.engines.select import VALID_FORCED_CHOICES
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
 
@@ -33,7 +34,7 @@ def _set_progress(analysis_id: str, step: str) -> None:
 
 
 def _process_analysis(
-    analysis_id: str, before_path: str, after_path: str, output_dir: Path
+    analysis_id: str, before_path: str, after_path: str, output_dir: Path, engine_choice: str
 ) -> None:
     before_png = output_dir / "before.png"
     after_png = output_dir / "after.png"
@@ -51,6 +52,7 @@ def _process_analysis(
             before_png,
             after_png,
             progress_cb=lambda step: _set_progress(analysis_id, step),
+            engine_choice=engine_choice,
         )
 
         def _fmt(b: dict) -> str:
@@ -64,6 +66,9 @@ def _process_analysis(
             analysis.after_png = str(after_png)
             analysis.bounds = _fmt(result["bounds"])
             analysis.engine = result["engine"]
+            analysis.engine_key = result["engine_key"]
+            analysis.engine_fell_back = result["engine_fell_back"]
+            analysis.pixel_size_m = result["pixel_size_m"]
             analysis.polygon_count = result["polygon_count"]
             analysis.geojson_path = result["geojson_path"]
             analysis.gpkg_path = result["gpkg_path"]
@@ -84,7 +89,13 @@ async def create_analysis(
     before: UploadFile = File(...),
     after: UploadFile = File(...),
     mode: str = Form("disaster"),
+    engine: str = Form("auto"),
 ):
+    if engine not in VALID_FORCED_CHOICES:
+        raise HTTPException(
+            status_code=400, detail=f"engine must be one of {VALID_FORCED_CHOICES}"
+        )
+
     analysis_id = uuid.uuid4().hex[:12]
     upload_dir = UPLOADS_DIR / analysis_id
     output_dir = ANALYSES_DIR / analysis_id
@@ -103,6 +114,7 @@ async def create_analysis(
         progress_step="validating",
         before_path=str(before_path),
         after_path=str(after_path),
+        engine_choice=engine,
     )
 
     with get_session() as session:
@@ -110,7 +122,7 @@ async def create_analysis(
         session.commit()
 
     background_tasks.add_task(
-        _process_analysis, analysis_id, str(before_path), str(after_path), output_dir
+        _process_analysis, analysis_id, str(before_path), str(after_path), output_dir, engine
     )
 
     return {"analysis_id": analysis_id}
@@ -137,7 +149,11 @@ async def get_analysis(analysis_id: str):
             "progress_steps": PROGRESS_STEPS,
             "error_message": analysis.error_message,
             "bounds": _parse(analysis.bounds),
+            "engine_choice": analysis.engine_choice,
             "engine": analysis.engine,
+            "engine_key": analysis.engine_key,
+            "engine_fell_back": analysis.engine_fell_back,
+            "pixel_size_m": analysis.pixel_size_m,
             "polygon_count": analysis.polygon_count,
             "created_at": analysis.created_at.isoformat(),
         }
