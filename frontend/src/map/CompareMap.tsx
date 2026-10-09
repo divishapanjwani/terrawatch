@@ -14,12 +14,12 @@ const FACILITY_COLOR_EXPR = [
   "match",
   ["get", "category"],
   "hospital",
-  "#C0392B",
+  "#E5484D",
   "school",
-  "#2F5D46",
+  "#2FD3C1",
   "shelter",
-  "#B8860B",
-  "#5B6472",
+  "#F5A524",
+  "#8FA3A8",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ] as any;
 
@@ -64,7 +64,7 @@ function addFacilitiesLayers(map: MLMap, facilities: FacilitiesData) {
     type: "line",
     source: "facility-lines",
     layout: { visibility: "none" },
-    paint: { "line-color": "#5B6472", "line-width": 1.5, "line-opacity": 0.85 },
+    paint: { "line-color": "#8FA3A8", "line-width": 1.5, "line-opacity": 0.7 },
   });
 
   map.addLayer({
@@ -110,7 +110,7 @@ const BASE_STYLE: StyleSpecification = {
     {
       id: "bg",
       type: "background",
-      paint: { "background-color": "#e9e7e0" },
+      paint: { "background-color": "#0b1215" },
     },
   ],
 };
@@ -120,12 +120,12 @@ const SEVERITY_COLOR_EXPR: any = [
   "match",
   ["get", "severity"],
   "High",
-  "#C0392B",
+  "#E5484D",
   "Medium",
-  "#E67E22",
+  "#F5A524",
   "Low",
-  "#F1C40F",
-  "#8A8F98",
+  "#F2D45C",
+  "#6B7D82",
 ];
 
 // Flattens a Polygon/MultiPolygon's coordinates into a [west, south, east,
@@ -158,6 +158,20 @@ function boundsToCoords(b: Bounds): [[number, number], [number, number], [number
   ];
 }
 
+const NICE_SCALE_DISTANCES_M = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000];
+
+function computeScaleBar(zoom: number, lat: number, maxWidthPx = 100): { widthPx: number; label: string } {
+  const metersPerPixel = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
+  let chosen = NICE_SCALE_DISTANCES_M[0];
+  for (const d of NICE_SCALE_DISTANCES_M) {
+    if (d / metersPerPixel <= maxWidthPx) chosen = d;
+    else break;
+  }
+  const widthPx = chosen / metersPerPixel;
+  const label = chosen >= 1000 ? `${chosen / 1000} km` : `${chosen} m`;
+  return { widthPx, label };
+}
+
 interface Props {
   beforeUrl: string;
   afterUrl: string;
@@ -188,13 +202,13 @@ function addHazardZoneLayers(map: MLMap) {
     id: "hazard-zone-fill",
     type: "fill",
     source: "hazard-zone",
-    paint: { "fill-color": "#C0392B", "fill-opacity": 0.1 },
+    paint: { "fill-color": "#E5484D", "fill-opacity": 0.12 },
   });
   map.addLayer({
     id: "hazard-zone-line",
     type: "line",
     source: "hazard-zone",
-    paint: { "line-color": "#C0392B", "line-width": 2, "line-dasharray": [2, 1] },
+    paint: { "line-color": "#E5484D", "line-width": 2, "line-dasharray": [2, 1] },
   });
 }
 
@@ -255,7 +269,7 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
     source: "changes",
     filter: NEEDS_REVIEW_FILTER,
     paint: {
-      "line-color": "#1F2328",
+      "line-color": "#E6EDEF",
       "line-width": 1.5,
       "line-dasharray": [1, 2],
     },
@@ -270,7 +284,7 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
     filter: REJECTED_FILTER,
     layout: { visibility: "none" },
     paint: {
-      "line-color": "#8A8F98",
+      "line-color": "#6B7D82",
       "line-width": 1.5,
       "line-dasharray": [3, 2],
     },
@@ -282,18 +296,33 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
     filter: REJECTED_FILTER,
     layout: { visibility: "none" },
     paint: {
-      "fill-color": "#8A8F98",
+      "fill-color": "#6B7D82",
       "fill-opacity": 0.12,
     },
   });
 
+  // Hover glow: a soft, wide, translucent halo underneath a crisp accent
+  // line -- gives the "polygon hover glow" the brief asks for without any
+  // raster/SVG filter trickery.
+  map.addLayer({
+    id: "changes-hover-glow",
+    type: "line",
+    source: "changes",
+    filter: ["==", ["get", "id"], "__none__"],
+    paint: {
+      "line-color": "#2FD3C1",
+      "line-width": 10,
+      "line-blur": 6,
+      "line-opacity": 0.5,
+    },
+  });
   map.addLayer({
     id: "changes-hover",
     type: "line",
     source: "changes",
     filter: ["==", ["get", "id"], "__none__"],
     paint: {
-      "line-color": "#2F5D46",
+      "line-color": "#2FD3C1",
       "line-width": 2.5,
     },
   });
@@ -304,7 +333,7 @@ function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
     source: "changes",
     filter: ["==", ["get", "id"], "__none__"],
     paint: {
-      "line-color": "#1F2328",
+      "line-color": "#E6EDEF",
       "line-width": 3,
     },
   });
@@ -358,6 +387,8 @@ export default function CompareMap({
   const showPopulationRef = useRef(showPopulation);
   const drawModeRef = useRef(drawMode);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
+  const [cursorLngLat, setCursorLngLat] = useState<{ lng: number; lat: number } | null>(null);
+  const [viewState, setViewState] = useState({ zoom: 12, lat: 0 });
   geojsonRef.current = geojson;
   onClickRef.current = onPolygonClick;
   onHoverRef.current = onPolygonHover;
@@ -479,6 +510,16 @@ export default function CompareMap({
     afterMap.on("move", sync(afterMap, beforeMap));
     beforeMap.on("move", sync(beforeMap, afterMap));
 
+    // Registered on both maps -- the swipe divider means the cursor can be
+    // over either one depending on slider position.
+    for (const map of [afterMap, beforeMap]) {
+      map.on("mousemove", (e) => setCursorLngLat(e.lngLat));
+      map.on("mouseout", () => setCursorLngLat(null));
+    }
+    const updateViewState = () => setViewState({ zoom: afterMap.getZoom(), lat: afterMap.getCenter().lat });
+    afterMap.on("move", updateViewState);
+    updateViewState();
+
     mapsRef.current = { before: beforeMap, after: afterMap };
 
     return () => {
@@ -596,9 +637,9 @@ export default function CompareMap({
   useEffect(() => {
     if (!mapsRef.current) return;
     for (const map of [mapsRef.current.before, mapsRef.current.after]) {
-      if (map.getLayer("changes-hover")) {
-        map.setFilter("changes-hover", ["==", ["get", "id"], hoveredId ?? "__none__"]);
-      }
+      const filter = ["==", ["get", "id"], hoveredId ?? "__none__"] as unknown as FilterSpecification;
+      if (map.getLayer("changes-hover")) map.setFilter("changes-hover", filter);
+      if (map.getLayer("changes-hover-glow")) map.setFilter("changes-hover-glow", filter);
     }
   }, [hoveredId]);
 
@@ -695,9 +736,10 @@ export default function CompareMap({
           top: 0,
           bottom: 0,
           left: `${sliderPct}%`,
-          width: "4px",
-          marginLeft: "-2px",
+          width: "2px",
+          marginLeft: "-1px",
           background: "var(--color-accent)",
+          boxShadow: "0 0 8px rgba(47,211,193,0.6)",
           cursor: "ew-resize",
           zIndex: 10,
         }}
@@ -708,102 +750,117 @@ export default function CompareMap({
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: "28px",
-            height: "28px",
+            width: "26px",
+            height: "26px",
             borderRadius: "50%",
             background: "var(--color-accent)",
-            color: "white",
+            color: "#06201c",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontSize: "12px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+            fontWeight: 700,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
           }}
         >
           &#8596;
         </div>
       </div>
 
-      <div
-        style={{
-          position: "absolute",
-          top: 12,
-          left: 12,
-          background: "rgba(255,255,255,0.9)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-sm)",
-          padding: "4px 8px",
-          fontSize: "var(--font-size-xs)",
-          zIndex: 5,
-        }}
-      >
+      <div className="ts-float" style={{ position: "absolute", top: 12, left: 12, padding: "5px 10px", fontSize: "var(--font-size-xs)", zIndex: 5, fontWeight: 500 }}>
         {beforeLabel}
       </div>
-      <div
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 12,
-          background: "rgba(255,255,255,0.9)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-sm)",
-          padding: "4px 8px",
-          fontSize: "var(--font-size-xs)",
-          zIndex: 5,
-        }}
-      >
+      <div className="ts-float" style={{ position: "absolute", top: 12, right: 12, padding: "5px 10px", fontSize: "var(--font-size-xs)", zIndex: 5, fontWeight: 500 }}>
         {afterLabel}
       </div>
 
       <Legend showRejected={showRejected} />
 
+      <div
+        style={{
+          position: "absolute",
+          bottom: 12,
+          right: 12,
+          zIndex: 5,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: "8px",
+        }}
+      >
+        <div className="ts-float" style={{ padding: "6px 10px", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+          <div
+            style={{
+              width: `${computeScaleBar(viewState.zoom, viewState.lat).widthPx}px`,
+              borderBottom: "2px solid var(--color-text-secondary)",
+              borderLeft: "2px solid var(--color-text-secondary)",
+              borderRight: "2px solid var(--color-text-secondary)",
+              height: "5px",
+            }}
+          />
+          <span className="mono" style={{ fontSize: "10px", color: "var(--color-text-secondary)" }}>
+            {computeScaleBar(viewState.zoom, viewState.lat).label}
+          </span>
+        </div>
+        {cursorLngLat && (
+          <div className="ts-float mono" style={{ padding: "4px 8px", fontSize: "10px", color: "var(--color-text-secondary)" }}>
+            {cursorLngLat.lat.toFixed(5)}, {cursorLngLat.lng.toFixed(5)}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          top: 52,
+          right: 12,
+          zIndex: 5,
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: "var(--radius-sm)",
+          overflow: "hidden",
+        }}
+        className="ts-float"
+      >
+        <button
+          onClick={() => mapsRef.current?.after.zoomIn({ duration: 200 })}
+          aria-label="Zoom in"
+          style={{ width: "28px", height: "28px", border: "none", borderBottom: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text)", cursor: "pointer", fontSize: "15px" }}
+        >
+          +
+        </button>
+        <button
+          onClick={() => mapsRef.current?.after.zoomOut({ duration: 200 })}
+          aria-label="Zoom out"
+          style={{ width: "28px", height: "28px", border: "none", background: "transparent", color: "var(--color-text)", cursor: "pointer", fontSize: "15px" }}
+        >
+          −
+        </button>
+      </div>
+
       {drawMode && (
         <div
+          className="ts-float ts-fade-up"
           style={{
             position: "absolute",
             top: 12,
             left: "50%",
             transform: "translateX(-50%)",
-            background: "white",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-sm)",
             padding: "8px 12px",
             fontSize: "var(--font-size-xs)",
             zIndex: 15,
             display: "flex",
             alignItems: "center",
             gap: "10px",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
           }}
         >
-          <span>Click the map to add points ({drawPoints.length} so far). Need at least 3.</span>
-          <button
-            onClick={finishDrawing}
-            disabled={drawPoints.length < 3}
-            style={{
-              padding: "4px 10px",
-              fontSize: "var(--font-size-xs)",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--color-accent)",
-              color: "white",
-              cursor: drawPoints.length < 3 ? "not-allowed" : "pointer",
-              opacity: drawPoints.length < 3 ? 0.5 : 1,
-            }}
-          >
+          <span style={{ color: "var(--color-text-secondary)" }}>
+            Click the map to add points (<span className="mono" style={{ color: "var(--color-text)" }}>{drawPoints.length}</span> so far). Need at least 3.
+          </span>
+          <button onClick={finishDrawing} disabled={drawPoints.length < 3} className="ts-btn ts-btn-primary ts-btn-sm">
             Finish zone
           </button>
-          <button
-            onClick={cancelDrawing}
-            style={{
-              padding: "4px 10px",
-              fontSize: "var(--font-size-xs)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-sm)",
-              background: "white",
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={cancelDrawing} className="ts-btn ts-btn-sm">
             Cancel
           </button>
         </div>
@@ -812,68 +869,70 @@ export default function CompareMap({
   );
 }
 
+const SEVERITY_LEGEND: { label: string; color: string; pattern: string }[] = [
+  { label: "High", color: "#E5484D", pattern: "solid" },
+  { label: "Medium", color: "#F5A524", pattern: "solid" },
+  { label: "Low", color: "#F2D45C", pattern: "solid" },
+];
+
 function Legend({ showRejected }: { showRejected: boolean }) {
   return (
     <div
-      title="Severity = change strength, not damage. sev_score = 0.5·norm(area_m²) + 0.5·norm(change_magnitude). High ≥ 0.66, Medium ≥ 0.33, else Low."
+      className="ts-float"
+      title="Severity = change strength, not damage. sev_score = max(norm(log area_m²), norm(log change_magnitude)) — severe if very large OR very intense. High ≥ 0.66, Medium ≥ 0.33, else Low."
       style={{
         position: "absolute",
         bottom: 12,
         left: 12,
-        background: "rgba(255,255,255,0.95)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-sm)",
-        padding: "8px 10px",
+        padding: "10px 12px",
         fontSize: "var(--font-size-xs)",
         zIndex: 5,
         display: "flex",
         flexDirection: "column",
-        gap: "4px",
+        gap: "5px",
         cursor: "help",
       }}
     >
-      <div style={{ fontWeight: 600, marginBottom: "2px" }}>Severity</div>
-      {[
-        ["High", "#C0392B"],
-        ["Medium", "#E67E22"],
-        ["Low", "#F1C40F"],
-      ].map(([label, color]) => (
-        <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <div className="ts-label" style={{ marginBottom: "2px" }}>
+        Severity
+      </div>
+      {SEVERITY_LEGEND.map(({ label, color }) => (
+        <div key={label} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
           <span
             style={{
               width: "10px",
               height: "10px",
               borderRadius: "2px",
               background: color,
-              border: "1.5px solid rgba(0,0,0,0.3)",
               display: "inline-block",
+              flexShrink: 0,
             }}
           />
-          <span>{label}</span>
+          <span style={{ color: "var(--color-text)" }}>{label}</span>
         </div>
       ))}
-      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
         <span
           style={{
             width: "14px",
             height: "0px",
-            borderTop: "1.5px dotted #1F2328",
+            borderTop: "1.5px dotted var(--color-text)",
             display: "inline-block",
           }}
         />
-        <span>Needs review</span>
+        <span style={{ color: "var(--color-text)" }}>Needs review</span>
       </div>
       {showRejected && (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
           <span
             style={{
               width: "14px",
               height: "0px",
-              borderTop: "1.5px dashed #8A8F98",
+              borderTop: "1.5px dashed var(--color-rejected)",
               display: "inline-block",
             }}
           />
-          <span>Rejected</span>
+          <span style={{ color: "var(--color-text)" }}>Rejected</span>
         </div>
       )}
     </div>

@@ -1,22 +1,36 @@
 import type { ReactNode } from "react";
 import type { MapGeoJSONFeature } from "maplibre-gl";
+import {
+  AlertTriangle,
+  Building2,
+  Droplets,
+  ExternalLink,
+  HelpCircle,
+  Home,
+  Hospital,
+  Mountain,
+  Route,
+  School,
+  TreeDeciduous,
+  X,
+} from "lucide-react";
 
-const SEVERITY_COLOR: Record<string, string> = {
-  High: "#C0392B",
-  Medium: "#E67E22",
-  Low: "#F1C40F",
+const SEVERITY_PILL: Record<string, string> = {
+  High: "ts-pill-high",
+  Medium: "ts-pill-medium",
+  Low: "ts-pill-low",
 };
 
 // Mirrors app/pipeline/false_alarm.py REASON_LABELS -- plain-language
 // explanation shown when a rejected polygon is clicked.
 const REJECT_REASON_LABELS: Record<string, string> = {
-  cloud: "Rejected: overlaps a cloud in the before or after image.",
-  too_small: "Rejected: smaller than the minimum area for a real change.",
-  misalignment_edge: "Rejected: sits at the edge of the valid image area, likely an alignment artifact.",
+  cloud: "Overlaps a cloud in the before or after image.",
+  too_small: "Smaller than the minimum area for a real change.",
+  misalignment_edge: "Sits at the edge of the valid image area, likely an alignment artifact.",
   vegetation_seasonal:
-    "Rejected: looks like a seasonal vegetation change (color shift only, no sign of construction, water, or bare soil).",
+    "Looks like a seasonal vegetation change (color shift only, no sign of construction, water, or bare soil).",
   shadow_illumination:
-    "Rejected: brightness changed but the underlying structure/texture didn't — likely a shadow or lighting change.",
+    "Brightness changed but the underlying structure/texture didn't — likely a shadow or lighting change.",
 };
 
 const CHANGE_TYPE_LABEL: Record<string, string> = {
@@ -28,19 +42,38 @@ const CHANGE_TYPE_LABEL: Record<string, string> = {
   other: "Other / unclassified",
 };
 
+const CHANGE_TYPE_ICON: Record<string, React.ComponentType<{ size?: number }>> = {
+  new_construction: Building2,
+  structure_lost: Home,
+  flooding: Droplets,
+  landslide_bare_soil: Mountain,
+  vegetation_loss: TreeDeciduous,
+  other: HelpCircle,
+};
+
+const FACILITY_ICON: Record<string, React.ComponentType<{ size?: number }>> = {
+  hospital: Hospital,
+  school: School,
+  shelter: Home,
+  road: Route,
+};
+
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div
       style={{
         display: "flex",
         justifyContent: "space-between",
-        padding: "4px 0",
+        padding: "6px 0",
         borderBottom: "1px solid var(--color-border)",
         fontSize: "var(--font-size-xs)",
+        gap: "12px",
       }}
     >
-      <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
-      <span className="mono">{value}</span>
+      <span style={{ color: "var(--color-text-secondary)", flexShrink: 0 }}>{label}</span>
+      <span className="mono" style={{ color: "var(--color-text)", textAlign: "right" }}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -63,6 +96,7 @@ export default function PolygonPanel({
   const gmapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
   const rejectReason = String(p.reject_reason ?? "");
   const changeType = String(p.change_type ?? "");
+  const ChangeIcon = CHANGE_TYPE_ICON[changeType] ?? HelpCircle;
   let nearbyFacilities: { type: string; name: string; distance_m: number }[] = [];
   try {
     nearbyFacilities = p.nearby_facilities_json ? JSON.parse(String(p.nearby_facilities_json)) : [];
@@ -70,81 +104,53 @@ export default function PolygonPanel({
     nearbyFacilities = [];
   }
 
+  const whyText = isRejected
+    ? REJECT_REASON_LABELS[rejectReason] ?? `${rejectReason || "No reason recorded"}.`
+    : p.change_type_rule
+    ? String(p.change_type_rule)
+    : null;
+
   return (
-    <div
-      style={{
-        height: "100%",
-        width: "100%",
-        background: "var(--color-panel)",
-        borderLeft: "1px solid var(--color-border)",
-        padding: "16px",
-        overflowY: "auto",
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <h2 style={{ fontSize: "var(--font-size-sm)", margin: "0 0 4px", color: "var(--color-text-secondary)" }}>
-          Change details
-        </h2>
-        <button
-          onClick={onClose}
-          style={{
-            border: "none",
-            background: "none",
-            cursor: "pointer",
-            fontSize: "var(--font-size-base)",
-            color: "var(--color-text-secondary)",
-            lineHeight: 1,
-          }}
-          aria-label="Close"
-        >
-          &times;
+    <div style={{ padding: "14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {isRejected ? (
+            <span className="ts-pill ts-pill-rejected">Rejected</span>
+          ) : (
+            <span className={`ts-pill ${SEVERITY_PILL[severity] ?? "ts-pill-neutral"}`}>
+              <span className="ts-pill-dot" style={{ background: "currentColor" }} />
+              {severity || "—"}
+            </span>
+          )}
+          {!isRejected && (
+            <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "var(--font-size-sm)", color: "var(--color-text)" }}>
+              <ChangeIcon size={14} />
+              {CHANGE_TYPE_LABEL[changeType] ?? (changeType || "—")}
+            </span>
+          )}
+        </div>
+        <button onClick={onClose} className="ts-btn-ghost" style={{ border: "none", background: "none", cursor: "pointer", padding: "2px", color: "var(--color-text-secondary)" }} aria-label="Close">
+          <X size={16} />
         </button>
       </div>
-
-      {isRejected ? (
-        <div
-          style={{
-            margin: "8px 0 16px",
-            padding: "10px 12px",
-            background: "rgba(138,143,152,0.12)",
-            border: "1px dashed var(--color-rejected)",
-            borderRadius: "var(--radius-sm)",
-            fontSize: "var(--font-size-xs)",
-            lineHeight: 1.5,
-          }}
-        >
-          {REJECT_REASON_LABELS[rejectReason] ?? `Rejected: ${rejectReason || "no reason recorded"}.`}
-        </div>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", margin: "8px 0 16px" }}>
-          <span
-            style={{
-              width: "12px",
-              height: "12px",
-              borderRadius: "2px",
-              background: SEVERITY_COLOR[severity] ?? "#8A8F98",
-              display: "inline-block",
-            }}
-          />
-          <span style={{ fontSize: "var(--font-size-lg)", fontWeight: 600 }}>{severity || "—"}</span>
-          <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>severity</span>
-        </div>
-      )}
 
       {!isRejected && Boolean(p.in_hazard_zone) && (
         <div
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
             margin: "0 0 12px",
-            padding: "8px 10px",
-            background: "rgba(192,57,43,0.08)",
-            border: "1px solid var(--color-danger)",
+            padding: "9px 11px",
+            background: "var(--color-danger-soft)",
+            border: "1px solid rgba(229,72,77,0.35)",
             borderRadius: "var(--radius-sm)",
             fontSize: "var(--font-size-xs)",
-            color: "var(--color-danger)",
+            color: "var(--color-severity-high)",
             fontWeight: 600,
           }}
         >
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} />
           New structure detected in hazard zone — verify
         </div>
       )}
@@ -153,9 +159,9 @@ export default function PolygonPanel({
         <div
           style={{
             margin: "0 0 12px",
-            padding: "6px 10px",
-            background: "rgba(184,134,11,0.1)",
-            border: "1px dotted var(--color-warning)",
+            padding: "7px 11px",
+            background: "var(--color-warning-soft)",
+            border: "1px dotted rgba(245,165,36,0.5)",
             borderRadius: "var(--radius-sm)",
             fontSize: "var(--font-size-xs)",
             color: "var(--color-warning)",
@@ -165,19 +171,23 @@ export default function PolygonPanel({
         </div>
       )}
 
-      <Row label="ID" value={String(p.id ?? "—")} />
-      <Row label="Status" value={status} />
-      {isRejected ? (
-        <Row label="Reason" value={rejectReason || "—"} />
-      ) : (
-        <Row label="Change type (estimated)" value={CHANGE_TYPE_LABEL[changeType] ?? (changeType || "—")} />
+      {whyText && (
+        <div className="ts-card" style={{ padding: "10px 12px", marginBottom: "12px" }}>
+          <div className="ts-label" style={{ marginBottom: "5px" }}>
+            Why {isRejected ? "rejected" : "this type"}
+          </div>
+          <p style={{ margin: 0, fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>{whyText}</p>
+        </div>
       )}
+
+      <Row label="ID" value={String(p.id ?? "—")} />
       <Row label="Area" value={`${Number(p.area_m2 ?? 0).toLocaleString()} m²`} />
       <Row label="Change magnitude" value={Number(p.change_magnitude ?? 0).toFixed(2)} />
       <Row label="Confidence" value={`${(Number(p.confidence ?? 0) * 100).toFixed(0)}%`} />
       {!isRejected && <Row label="Severity score" value={Number(p.sev_score ?? 0).toFixed(2)} />}
       <Row label="Engine" value={String(p.engine ?? "—")} />
       <Row label="Centroid" value={`${lat.toFixed(5)}, ${lon.toFixed(5)}`} />
+
       {!isRejected && p.priority_rank != null && (
         <>
           <Row label="Priority rank" value={`#${Math.round(Number(p.priority_rank))}`} />
@@ -187,21 +197,13 @@ export default function PolygonPanel({
       {!isRejected && (
         <Row
           label="Nearest hospital"
-          value={
-            p.nearest_hospital_m != null
-              ? `${Number(p.nearest_hospital_m).toLocaleString()} m — ${String(p.nearest_hospital_name ?? "")}`
-              : "none found"
-          }
+          value={p.nearest_hospital_m != null ? `${Number(p.nearest_hospital_m).toLocaleString()} m` : "none found"}
         />
       )}
       {!isRejected && (
         <Row
           label="Nearest school"
-          value={
-            p.nearest_school_m != null
-              ? `${Number(p.nearest_school_m).toLocaleString()} m — ${String(p.nearest_school_name ?? "")}`
-              : "none found"
-          }
+          value={p.nearest_school_m != null ? `${Number(p.nearest_school_m).toLocaleString()} m` : "none found"}
         />
       )}
       {!isRejected && (
@@ -213,73 +215,57 @@ export default function PolygonPanel({
       {!isRejected && (
         <Row
           label="Population (inside)"
-          value={p.population_est != null ? `~${Math.round(Number(p.population_est)).toLocaleString()} (estimate)` : "no data"}
+          value={p.population_est != null ? `~${Math.round(Number(p.population_est)).toLocaleString()}` : "no data"}
         />
       )}
       {!isRejected && (
         <Row
           label="Population (+buffer)"
-          value={
-            p.population_buffer_est != null
-              ? `~${Math.round(Number(p.population_buffer_est)).toLocaleString()} (estimate)`
-              : "no data"
-          }
+          value={p.population_buffer_est != null ? `~${Math.round(Number(p.population_buffer_est)).toLocaleString()}` : "no data"}
         />
       )}
 
       {!isRejected && nearbyFacilities.length > 0 && (
-        <div style={{ marginTop: "12px" }}>
-          <h3 style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: "0 0 6px" }}>
+        <div style={{ marginTop: "14px" }}>
+          <div className="ts-label" style={{ marginBottom: "6px" }}>
             Nearby facilities
-          </h3>
-          {nearbyFacilities.map((f, i) => (
-            <Row key={i} label={`${f.type[0].toUpperCase()}${f.type.slice(1)}`} value={`${f.name} — ${f.distance_m.toFixed(0)} m`} />
-          ))}
+          </div>
+          {nearbyFacilities.map((f, i) => {
+            const Icon = FACILITY_ICON[f.type] ?? Hospital;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "5px 0", fontSize: "var(--font-size-xs)" }}>
+                <Icon size={13} />
+                <span style={{ color: "var(--color-text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                <span className="mono" style={{ color: "var(--color-text-secondary)", flexShrink: 0 }}>
+                  {f.distance_m.toFixed(0)} m
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
+
+      {!isRejected && p.priority_reason ? (
+        <p style={{ marginTop: "14px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+          <strong style={{ color: "var(--color-text)" }}>Priority reason:</strong> {String(p.priority_reason)}
+        </p>
+      ) : null}
 
       <a
         href={gmapsUrl}
         target="_blank"
         rel="noreferrer"
-        style={{
-          display: "block",
-          marginTop: "16px",
-          textAlign: "center",
-          padding: "8px",
-          fontSize: "var(--font-size-xs)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-sm)",
-          color: "var(--color-accent)",
-          textDecoration: "none",
-        }}
+        className="ts-btn"
+        style={{ width: "100%", marginTop: "16px", textDecoration: "none" }}
       >
         Open in Google Maps
+        <ExternalLink size={13} />
       </a>
 
-      {!isRejected && p.priority_reason ? (
-        <p style={{ marginTop: "16px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-          <strong>Priority reason:</strong> {String(p.priority_reason)}
-        </p>
-      ) : null}
-
-      {!isRejected && changeType && p.change_type_rule ? (
-        <p style={{ marginTop: "16px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-          <strong>Why this type:</strong> {String(p.change_type_rule)}
-        </p>
-      ) : null}
-
-      <p
-        style={{
-          marginTop: "16px",
-          fontSize: "var(--font-size-xs)",
-          color: "var(--color-text-secondary)",
-          lineHeight: 1.5,
-        }}
-      >
+      <p style={{ marginTop: "16px", fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", lineHeight: 1.5 }}>
         {isRejected
           ? "Rejected changes are excluded from severity scoring and the priority queue, but kept here for transparency."
-          : "Severity measures change strength, not confirmed damage. sev_score = 0.5·norm(area_m²) + 0.5·norm(change_magnitude); High ≥ 0.66, Medium ≥ 0.33, else Low."}
+          : "Severity measures change strength, not confirmed damage. sev_score = max(norm(log area_m²), norm(log change_magnitude)) — log-scaled so one huge outlier doesn't flatten the rest, and a change counts as severe if it's very large OR very intense; High ≥ 0.66, Medium ≥ 0.33, else Low."}
       </p>
     </div>
   );

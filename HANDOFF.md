@@ -1,11 +1,47 @@
 # Handoff — TerraWatch
 
-You're picking this up at the start of **Phase 6** (Phase 5 is done,
-branch `phase-5-mini`, PR open to main). This file is the
-practical "get running and know what's real" doc. `README.md` has the
-fuller technical writeup per phase; `PROJECT_BRIEF.md` is the original
-spec; `terrawatch-phase-prompts.md` has the Phase 5-8 prompts to paste
-into Claude Code one at a time.
+You're picking this up at the start of **Phase 6** (Phase 5 is merged
+into main). This file is the practical "get running and know what's
+real" doc. `README.md` has the fuller technical writeup per phase;
+`PROJECT_BRIEF.md` is the original spec; `terrawatch-phase-prompts.md`
+has the Phase 5-8 prompts to paste into Claude Code one at a time.
+
+## UI redesign (branch `ui-redesign`, off main after Phase 5)
+
+Frontend-only dark redesign replacing PROJECT_BRIEF.md Section 10's
+light design -- no backend/detection/filter/priority/API changes, same
+components' state and handlers throughout, just restyled (plus a couple
+of genuinely new, additive bits: explicit Priority queue/Change details
+tabs, a KPI strip, a "Load Wayanad demo" one-click landing button, a
+Settings "Reset to defaults"). See that branch's commits for the full
+writeup; the short version:
+
+- Dark palette (`#0B1215`/`#111B1F`/`#18252A` surfaces, `#2FD3C1` teal
+  accent, fixed severity colors), Inter + JetBrains Mono, `lucide-react`
+  icons. `frontend/src/styles/tokens.css` + `design-system.css`.
+- "Load Wayanad demo" fetches `frontend/public/demo/wayanad_before.tif`
+  / `wayanad_after.tif` as static files and feeds them through the
+  normal upload path -- **gitignored, not committed** (same ~12 MB
+  bytes as `backend/data/wayanad/`). To use the demo button on a fresh
+  clone: `cp backend/data/wayanad/before.tif
+  frontend/public/demo/wayanad_before.tif` (and `after.tif` likewise).
+  Hidden/disabled gracefully if missing.
+- Several real bugs found via Playwright click/hover/build testing, not
+  just screenshots -- worth knowing about if you touch `CompareMap.tsx`
+  or custom form controls again: (1) reactive layer-sync effects
+  checking a hardcoded source name instead of "does this map have an
+  image yet" silently broke the after-map's facilities/roads/population
+  layers; (2) a custom `Switch` component rooted in `<span>` instead of
+  `<label>` meant clicking the visible toggle never reached the
+  visually-hidden `<input>` -- every toggle in the app was unclickable;
+  (3) `tsc --noEmit` alone does not catch everything `tsc -b` (the real
+  `npm run build` step) catches, e.g. a MapLibre event-type error on
+  `"mouseleave"` at the map level (needs a layer id, or use `"mouseout"`
+  for the whole-map case); (4) any mousemove/click handler added to one
+  side of the before/after swipe map must be added to **both** `MLMap`
+  instances, since the swipe divider means either one can be under the
+  cursor -- this one recurred three times across the hover-glow,
+  hazard-zone draw, and cursor-coordinate features.
 
 ## Status: Phases 1-5 done
 

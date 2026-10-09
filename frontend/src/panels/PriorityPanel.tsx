@@ -1,10 +1,21 @@
 import { useState } from "react";
 import type { Feature, FeatureCollection } from "geojson";
+import {
+  Building2,
+  Droplets,
+  Home,
+  HelpCircle,
+  Hospital,
+  Mountain,
+  School,
+  TreeDeciduous,
+  Users,
+} from "lucide-react";
 
-const SEVERITY_COLOR: Record<string, string> = {
-  High: "#C0392B",
-  Medium: "#E67E22",
-  Low: "#F1C40F",
+const SEVERITY_PILL: Record<string, string> = {
+  High: "ts-pill-high",
+  Medium: "ts-pill-medium",
+  Low: "ts-pill-low",
 };
 
 const CHANGE_TYPE_LABEL: Record<string, string> = {
@@ -16,21 +27,30 @@ const CHANGE_TYPE_LABEL: Record<string, string> = {
   other: "Other / unclassified",
 };
 
+const CHANGE_TYPE_ICON: Record<string, React.ComponentType<{ size?: number }>> = {
+  new_construction: Building2,
+  structure_lost: Home,
+  flooding: Droplets,
+  landslide_bare_soil: Mountain,
+  vegetation_loss: TreeDeciduous,
+  other: HelpCircle,
+};
+
 const SEVERITY_FILTERS = ["All", "High", "Medium", "Low"] as const;
 type SeverityFilter = (typeof SEVERITY_FILTERS)[number];
 
 const ROWS_PREVIEW = 10;
 
-function nearestFacilityLabel(p: Record<string, unknown>): string {
+function nearestFacility(p: Record<string, unknown>): { label: string; dist: number; Icon: typeof Hospital } | null {
   const hospM = p.nearest_hospital_m as number | null;
   const schoolM = p.nearest_school_m as number | null;
-  const candidates: [number, string][] = [];
-  if (hospM != null) candidates.push([hospM, "Hospital"]);
-  if (schoolM != null) candidates.push([schoolM, "School"]);
-  if (!candidates.length) return "—";
+  const candidates: [number, string, typeof Hospital][] = [];
+  if (hospM != null) candidates.push([hospM, "Hospital", Hospital]);
+  if (schoolM != null) candidates.push([schoolM, "School", School]);
+  if (!candidates.length) return null;
   candidates.sort((a, b) => a[0] - b[0]);
-  const [dist, label] = candidates[0];
-  return `${label} · ${dist.toLocaleString(undefined, { maximumFractionDigits: 0 })} m`;
+  const [dist, label, Icon] = candidates[0];
+  return { label, dist, Icon };
 }
 
 export default function PriorityPanel({
@@ -38,11 +58,13 @@ export default function PriorityPanel({
   onSelect,
   hoveredId,
   onHoverRow,
+  selectedId,
 }: {
   geojson: FeatureCollection;
   onSelect: (id: string) => void;
   hoveredId?: string | null;
   onHoverRow?: (id: string | null) => void;
+  selectedId?: string | null;
 }) {
   const [filter, setFilter] = useState<SeverityFilter>("All");
   const [showAll, setShowAll] = useState(false);
@@ -57,41 +79,20 @@ export default function PriorityPanel({
   const visibleRows = showAll ? filteredRows : filteredRows.slice(0, ROWS_PREVIEW);
 
   return (
-    <div
-      style={{
-        height: "100%",
-        width: "100%",
-        background: "var(--color-panel)",
-        borderLeft: "1px solid var(--color-border)",
-        padding: "16px",
-        overflowY: "auto",
-        boxSizing: "border-box",
-      }}
-    >
-      <h2 style={{ fontSize: "var(--font-size-sm)", margin: "0 0 4px", color: "var(--color-text-secondary)" }}>
-        Priority queue
-      </h2>
-      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: "0 0 10px" }}>
+    <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
+      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.4 }}>
         {allRows.length} kept changes ranked by severity, confidence, and closeness to a hospital or school.
       </p>
 
-      <div style={{ display: "flex", gap: "4px", marginBottom: "12px" }}>
+      <div className="ts-segment" style={{ width: "100%" }}>
         {SEVERITY_FILTERS.map((s) => (
           <button
             key={s}
+            className={filter === s ? "active" : ""}
+            style={{ flex: 1 }}
             onClick={() => {
               setFilter(s);
               setShowAll(false);
-            }}
-            style={{
-              flex: 1,
-              padding: "4px 6px",
-              fontSize: "var(--font-size-xs)",
-              borderRadius: "var(--radius-sm)",
-              border: `1px solid ${filter === s ? "var(--color-accent)" : "var(--color-border)"}`,
-              background: filter === s ? "var(--color-accent)" : "white",
-              color: filter === s ? "white" : "var(--color-text)",
-              cursor: "pointer",
             }}
           >
             {s}
@@ -100,9 +101,7 @@ export default function PriorityPanel({
       </div>
 
       {filteredRows.length === 0 && (
-        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-          No kept changes match this filter.
-        </p>
+        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)" }}>No kept changes match this filter.</p>
       )}
 
       {visibleRows.map((f) => {
@@ -111,66 +110,65 @@ export default function PriorityPanel({
         const severity = String(p.severity ?? "");
         const popBuffer = p.population_buffer_est as number | null;
         const isHovered = hoveredId === id;
+        const isSelected = selectedId === id;
+        const changeType = String(p.change_type ?? "");
+        const ChangeIcon = CHANGE_TYPE_ICON[changeType] ?? HelpCircle;
+        const facility = nearestFacility(p);
+
         return (
           <button
             key={id}
             onClick={() => onSelect(id)}
             onMouseEnter={() => onHoverRow?.(id)}
             onMouseLeave={() => onHoverRow?.(null)}
+            className="ts-card"
             style={{
               display: "block",
               width: "100%",
               textAlign: "left",
-              padding: "8px 10px",
-              marginBottom: "6px",
-              borderRadius: "var(--radius-sm)",
-              border: `1px solid ${isHovered ? "var(--color-accent)" : "var(--color-border)"}`,
-              background: isHovered ? "rgba(47,93,70,0.06)" : "white",
+              padding: "11px 12px",
               cursor: "pointer",
+              borderColor: isSelected ? "var(--color-accent)" : isHovered ? "var(--color-border-strong)" : "var(--color-border)",
+              background: isSelected ? "var(--color-accent-soft)" : isHovered ? "var(--color-card-hover)" : "var(--color-card)",
+              transition: "background var(--transition-fast), border-color var(--transition-fast)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "2px",
-                  background: SEVERITY_COLOR[severity] ?? "#8A8F98",
-                  display: "inline-block",
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "7px" }}>
+              <span className="mono" style={{ fontSize: "var(--font-size-sm)", fontWeight: 700, color: "var(--color-text-secondary)", width: "26px" }}>
                 #{Math.round(Number(p.priority_rank))}
               </span>
-              <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-                {CHANGE_TYPE_LABEL[String(p.change_type ?? "")] ?? String(p.change_type ?? "—")}
+              <span className={`ts-pill ${SEVERITY_PILL[severity] ?? "ts-pill-neutral"}`}>
+                <span className="ts-pill-dot" style={{ background: "currentColor" }} />
+                {severity || "—"}
               </span>
+              <div style={{ flex: 1 }} />
+              <ChangeIcon size={13} />
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginTop: "4px",
-                fontSize: "var(--font-size-xs)",
-              }}
-            >
-              <span className="mono">{Number(p.area_m2 ?? 0).toLocaleString()} m²</span>
-              <span className="mono">{nearestFacilityLabel(p)}</span>
+
+            <div style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text)", marginBottom: "6px" }}>
+              {CHANGE_TYPE_LABEL[changeType] ?? changeType}
             </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-size-xs)", marginBottom: popBuffer || facility ? "6px" : 0 }}>
+              <span className="mono" style={{ color: "var(--color-text-secondary)" }}>
+                {Number(p.area_m2 ?? 0).toLocaleString()} m²
+              </span>
+              {facility && (
+                <span className="mono" style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <facility.Icon size={11} />
+                  {facility.label} · {facility.dist.toLocaleString(undefined, { maximumFractionDigits: 0 })} m
+                </span>
+              )}
+            </div>
+
             {popBuffer != null && popBuffer >= 1 && (
-              <div style={{ marginTop: "2px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginBottom: "6px" }}>
+                <Users size={11} />
                 ~{Math.round(popBuffer).toLocaleString()} people estimated nearby
               </div>
             )}
-            <div
-              style={{
-                marginTop: "4px",
-                fontSize: "var(--font-size-xs)",
-                color: "var(--color-text-secondary)",
-                lineHeight: 1.4,
-              }}
-            >
+
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", lineHeight: 1.4 }}>
               {String(p.priority_reason ?? "")}
             </div>
           </button>
@@ -178,19 +176,7 @@ export default function PriorityPanel({
       })}
 
       {!showAll && filteredRows.length > ROWS_PREVIEW && (
-        <button
-          onClick={() => setShowAll(true)}
-          style={{
-            width: "100%",
-            padding: "8px",
-            fontSize: "var(--font-size-xs)",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--color-border)",
-            background: "white",
-            color: "var(--color-accent)",
-            cursor: "pointer",
-          }}
-        >
+        <button className="ts-btn ts-btn-sm" onClick={() => setShowAll(true)} style={{ width: "100%" }}>
           Show all ({filteredRows.length})
         </button>
       )}
