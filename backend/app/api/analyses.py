@@ -4,6 +4,8 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
+
 from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from sqlmodel import select
@@ -14,6 +16,7 @@ from app.models import Analysis
 from app.geo.preview import read_metadata
 from app.impact.facilities import fetch_facilities, OSMFetchError
 from app.pipeline.run import run_pipeline
+from app.pipeline.priority import recompute_hazard_zone_gdf
 from app.engines.select import VALID_FORCED_CHOICES
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
@@ -235,6 +238,58 @@ async def get_polygons(analysis_id: str):
     if not geojson_path or not Path(geojson_path).exists():
         return JSONResponse({"type": "FeatureCollection", "features": []})
     return JSONResponse(json.loads(Path(geojson_path).read_text()))
+
+
+@router.post("/{analysis_id}/hazard_zone")
+async def set_hazard_zone(analysis_id: str, body: dict):
+    """Apply a user-drawn/uploaded hazard zone AFTER the analysis is ready
+    (Prevention mode) -- the zone is drawn relative to already-detected
+    new_construction polygons, so this recomputes in_hazard_zone and
+    re-ranks directly from the saved result files, with no re-detection
+    and no re-fetch of facilities/population."""
+    import geopandas as gpd
+    from shapely.geometry import shape as shapely_shape
+
+    geojson_body = body.get("geojson")
+    if not geojson_body:
+        raise HTTPException(status_code=400, detail="Missing 'geojson' field")
+    try:
+        hazard_geom = shapely_shape(geojson_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="'geojson' must be a valid GeoJSON geometry")
+
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        if analysis is None:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        if analysis.status != "ready" or not analysis.gpkg_path:
+            raise HTTPException(status_code=409, detail="Analysis not ready yet")
+        gpkg_path = analysis.gpkg_path
+        geojson_path = analysis.geojson_path
+        mode = analysis.mode
+
+    gdf = gpd.read_file(gpkg_path, layer="changes")
+    if gdf.empty:
+        raise HTTPException(status_code=409, detail="No polygons to apply a hazard zone to")
+
+    kept = gdf[gdf["status"] == "kept"]
+    rejected = gdf[gdf["status"] != "kept"]
+    updated_kept = recompute_hazard_zone_gdf(kept, hazard_geom, mode)
+    merged = gpd.GeoDataFrame(
+        pd.concat([updated_kept, rejected], ignore_index=True), geometry="geometry", crs=gdf.crs
+    )
+
+    merged.to_file(gpkg_path, driver="GPKG", layer="changes")
+    merged.to_crs("EPSG:4326").to_file(geojson_path, driver="GeoJSON")
+
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        analysis.hazard_zone_geojson = json.dumps(geojson_body)
+        session.add(analysis)
+        session.commit()
+
+    in_zone_count = int(updated_kept["in_hazard_zone"].sum())
+    return {"status": "ok", "in_hazard_zone_count": in_zone_count}
 
 
 @router.get("/{analysis_id}/export")

@@ -107,6 +107,63 @@ def apply_hazard_zone(kept_polygons: list, hazard_zone_geom_4326) -> None:
         p.in_hazard_zone = zone_area.contains(p.geometry.centroid)
 
 
+def _row_reason(row) -> str:
+    parts = [f"{row['severity']} severity" if row.get("severity") else "Unknown severity"]
+    pop = row.get("population_buffer_est")
+    if pop is not None and pop == pop and pop >= 1:  # pop == pop filters NaN
+        parts.append(f"~{round(pop)} people estimated nearby")
+    candidates = []
+    hosp = row.get("nearest_hospital_m")
+    school = row.get("nearest_school_m")
+    if hosp is not None and hosp == hosp:
+        candidates.append((hosp, "hospital"))
+    if school is not None and school == school:
+        candidates.append((school, "school"))
+    if candidates:
+        dist, label = min(candidates, key=lambda c: c[0])
+        parts.append(f"{dist:.0f} m from a {label}")
+    reason = "; ".join(parts) + "."
+    if row.get("in_hazard_zone"):
+        reason = f"{config.HAZARD_ZONE_WORDING}. {reason}"
+    return reason
+
+
+def recompute_hazard_zone_gdf(gdf_kept, hazard_zone_4326, mode: str):
+    """Post-hoc hazard-zone application for an already-analyzed scene
+    (the zone is drawn/uploaded AFTER seeing where new_construction was
+    detected, not at analysis-creation time). Operates directly on the
+    saved GeoDataFrame's columns -- no re-fetch of facilities/population
+    needed, since those columns are already there from the original run.
+    Returns the updated GeoDataFrame (new in_hazard_zone, priority_rank,
+    priority_reason columns)."""
+    import geopandas as gpd
+    from pyproj import Transformer
+    from shapely.ops import transform as _transform
+
+    if gdf_kept.empty:
+        return gdf_kept
+
+    to_area = Transformer.from_crs("EPSG:4326", gdf_kept.crs, always_xy=True).transform
+    zone_area = _transform(to_area, hazard_zone_4326)
+
+    gdf_kept = gdf_kept.copy()
+    gdf_kept["in_hazard_zone"] = gdf_kept.apply(
+        lambda row: bool(row["change_type"] == "new_construction" and zone_area.contains(row.geometry.centroid)),
+        axis=1,
+    )
+
+    if mode == "prevention":
+        gdf_kept["_hazard_sort"] = gdf_kept["in_hazard_zone"].astype(int)
+        gdf_kept = gdf_kept.sort_values(by=["_hazard_sort", "priority_score"], ascending=[False, False])
+        gdf_kept = gdf_kept.drop(columns=["_hazard_sort"])
+    else:
+        gdf_kept = gdf_kept.sort_values(by="priority_score", ascending=False)
+
+    gdf_kept["priority_rank"] = range(1, len(gdf_kept) + 1)
+    gdf_kept["priority_reason"] = gdf_kept.apply(_row_reason, axis=1)
+    return gpd.GeoDataFrame(gdf_kept, geometry="geometry", crs=gdf_kept.crs)
+
+
 def compute_priority(
     kept_polygons: list,
     facilities: dict,

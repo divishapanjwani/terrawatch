@@ -40,6 +40,10 @@ export interface AnalysisStatus {
   rejected_count: number;
   reject_reason_counts: Record<string, number>;
   summary_line: string | null;
+  population_available: boolean;
+  total_population_buffer_est: number | null;
+  near_facility_count: number | null;
+  hazard_zone_geojson: string | null;
   quality_report: QualityReport | null;
   created_at: string;
 }
@@ -48,13 +52,15 @@ export async function createAnalysis(
   before: File,
   after: File,
   mode: string,
-  engine: EngineChoice = "auto"
+  engine: EngineChoice = "auto",
+  hazardZoneGeojson?: string | null
 ): Promise<{ analysis_id: string }> {
   const form = new FormData();
   form.append("before", before);
   form.append("after", after);
   form.append("mode", mode);
   form.append("engine", engine);
+  if (hazardZoneGeojson) form.append("hazard_zone", hazardZoneGeojson);
 
   const res = await fetch(`${API_BASE}/api/analyses`, {
     method: "POST",
@@ -74,7 +80,7 @@ export async function getAnalysis(id: string): Promise<AnalysisStatus> {
   return res.json();
 }
 
-export function imageryUrl(id: string, which: "before" | "after"): string {
+export function imageryUrl(id: string, which: "before" | "after" | "population"): string {
   return `${API_BASE}/api/analyses/${id}/imagery/${which}`;
 }
 
@@ -84,6 +90,76 @@ export function polygonsUrl(id: string): string {
 
 export function exportUrl(id: string, format: "geojson" | "gpkg"): string {
   return `${API_BASE}/api/analyses/${id}/export?format=${format}`;
+}
+
+export interface FacilityPoint {
+  lat: number;
+  lon: number;
+  name: string;
+}
+
+export interface RoadLine {
+  name: string;
+  highway: string;
+  coords: [number, number][];
+}
+
+export interface FacilitiesData {
+  hospitals: FacilityPoint[];
+  schools: FacilityPoint[];
+  shelters: FacilityPoint[];
+  roads: RoadLine[];
+}
+
+export function populationOverlayUrl(id: string): string {
+  return imageryUrl(id, "population");
+}
+
+export async function getFacilities(id: string): Promise<FacilitiesData> {
+  const res = await fetch(`${API_BASE}/api/analyses/${id}/facilities`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch facilities: ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface PriorityWeights {
+  w1_severity: number;
+  w2_population: number;
+  w3_facility_proximity: number;
+  w4_confidence: number;
+  w5_route_impact: number;
+}
+
+export async function getPriorityWeights(): Promise<PriorityWeights> {
+  const res = await fetch(`${API_BASE}/api/settings/weights`);
+  if (!res.ok) throw new Error(`Failed to fetch weights: ${res.status}`);
+  return res.json();
+}
+
+export async function setPriorityWeights(weights: Partial<PriorityWeights>): Promise<PriorityWeights> {
+  const res = await fetch(`${API_BASE}/api/settings/weights`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(weights),
+  });
+  if (!res.ok) throw new Error(`Failed to save weights: ${res.status}`);
+  return res.json();
+}
+
+export async function applyHazardZone(
+  id: string,
+  polygon: GeoJSON.Polygon
+): Promise<{ status: string; in_hazard_zone_count: number }> {
+  const res = await fetch(`${API_BASE}/api/analyses/${id}/hazard_zone`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ geojson: polygon }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to apply hazard zone: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
 }
 
 export async function getPolygons(id: string): Promise<FeatureCollection> {
