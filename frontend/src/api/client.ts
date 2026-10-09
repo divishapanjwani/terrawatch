@@ -1,3 +1,5 @@
+import type { FeatureCollection } from "geojson";
+
 export const API_BASE = "http://127.0.0.1:8000";
 
 export interface Bounds {
@@ -12,8 +14,11 @@ export interface AnalysisStatus {
   mode: string;
   status: "pending" | "ready" | "failed";
   progress_step: string;
+  progress_steps: string[];
   error_message: string | null;
   bounds: Bounds | null;
+  engine: string | null;
+  polygon_count: number;
   created_at: string;
 }
 
@@ -49,14 +54,32 @@ export function imageryUrl(id: string, which: "before" | "after"): string {
   return `${API_BASE}/api/analyses/${id}/imagery/${which}`;
 }
 
+export function polygonsUrl(id: string): string {
+  return `${API_BASE}/api/analyses/${id}/polygons`;
+}
+
+export function exportUrl(id: string, format: "geojson" | "gpkg"): string {
+  return `${API_BASE}/api/analyses/${id}/export?format=${format}`;
+}
+
+export async function getPolygons(id: string): Promise<FeatureCollection> {
+  const res = await fetch(polygonsUrl(id));
+  if (!res.ok) {
+    throw new Error(`Failed to fetch polygons: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function pollUntilReady(
   id: string,
+  onProgress?: (status: AnalysisStatus) => void,
   intervalMs = 800,
-  timeoutMs = 60000
+  timeoutMs = 180000
 ): Promise<AnalysisStatus> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const status = await getAnalysis(id);
+    onProgress?.(status);
     if (status.status === "ready" || status.status === "failed") {
       return status;
     }

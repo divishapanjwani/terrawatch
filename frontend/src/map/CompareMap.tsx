@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Map as MLMap, type StyleSpecification } from "maplibre-gl";
+import {
+  Map as MLMap,
+  type StyleSpecification,
+  type MapGeoJSONFeature,
+  type GeoJSONSource,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { FeatureCollection } from "geojson";
 import type { Bounds } from "../api/client";
 
 const BASE_STYLE: StyleSpecification = {
@@ -15,6 +21,19 @@ const BASE_STYLE: StyleSpecification = {
   ],
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const SEVERITY_COLOR_EXPR: any = [
+  "match",
+  ["get", "severity"],
+  "High",
+  "#C0392B",
+  "Medium",
+  "#E67E22",
+  "Low",
+  "#F1C40F",
+  "#8A8F98",
+];
+
 function boundsToCoords(b: Bounds): [[number, number], [number, number], [number, number], [number, number]] {
   return [
     [b.west, b.north],
@@ -28,14 +47,56 @@ interface Props {
   beforeUrl: string;
   afterUrl: string;
   bounds: Bounds;
+  geojson?: FeatureCollection | null;
+  selectedId?: string | null;
+  onPolygonClick?: (feature: MapGeoJSONFeature) => void;
   beforeLabel?: string;
   afterLabel?: string;
+}
+
+function addPolygonLayers(map: MLMap, geojson: FeatureCollection) {
+  if (map.getSource("changes")) {
+    (map.getSource("changes") as GeoJSONSource).setData(geojson);
+    return;
+  }
+  map.addSource("changes", { type: "geojson", data: geojson });
+  map.addLayer({
+    id: "changes-fill",
+    type: "fill",
+    source: "changes",
+    paint: {
+      "fill-color": SEVERITY_COLOR_EXPR,
+      "fill-opacity": 0.3,
+    },
+  });
+  map.addLayer({
+    id: "changes-line",
+    type: "line",
+    source: "changes",
+    paint: {
+      "line-color": SEVERITY_COLOR_EXPR,
+      "line-width": 1.8,
+    },
+  });
+  map.addLayer({
+    id: "changes-selected",
+    type: "line",
+    source: "changes",
+    filter: ["==", ["get", "id"], "__none__"],
+    paint: {
+      "line-color": "#1F2328",
+      "line-width": 3,
+    },
+  });
 }
 
 export default function CompareMap({
   beforeUrl,
   afterUrl,
   bounds,
+  geojson,
+  selectedId,
+  onPolygonClick,
   beforeLabel = "Before",
   afterLabel = "After",
 }: Props) {
@@ -47,6 +108,10 @@ export default function CompareMap({
   const [containerWidth, setContainerWidth] = useState(0);
   const draggingRef = useRef(false);
   const mapsRef = useRef<{ before: MLMap; after: MLMap } | null>(null);
+  const geojsonRef = useRef(geojson);
+  const onClickRef = useRef(onPolygonClick);
+  geojsonRef.current = geojson;
+  onClickRef.current = onPolygonClick;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -96,9 +161,20 @@ export default function CompareMap({
           source: id,
           paint: { "raster-opacity": 1 },
         });
+        if (geojsonRef.current) addPolygonLayers(map, geojsonRef.current);
       };
       if (map.isStyleLoaded()) onLoad();
       else map.on("load", onLoad);
+
+      map.on("click", "changes-fill", (e) => {
+        if (e.features && e.features[0]) onClickRef.current?.(e.features[0]);
+      });
+      map.on("mouseenter", "changes-fill", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "changes-fill", () => {
+        map.getCanvas().style.cursor = "";
+      });
     };
 
     addImage(afterMap, "after-img", afterUrl);
@@ -127,6 +203,24 @@ export default function CompareMap({
       mapsRef.current = null;
     };
   }, [beforeUrl, afterUrl, bounds]);
+
+  useEffect(() => {
+    if (!mapsRef.current || !geojson) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (map.isStyleLoaded() && map.getSource("before-img")) {
+        addPolygonLayers(map, geojson);
+      }
+    }
+  }, [geojson]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (map.getLayer("changes-selected")) {
+        map.setFilter("changes-selected", ["==", ["get", "id"], selectedId ?? "__none__"]);
+      }
+    }
+  }, [selectedId]);
 
   useEffect(() => {
     if (clipDivRef.current) {
@@ -264,6 +358,52 @@ export default function CompareMap({
       >
         {afterLabel}
       </div>
+
+      <Legend />
+    </div>
+  );
+}
+
+function Legend() {
+  return (
+    <div
+      title="Severity = change strength, not damage. sev_score = 0.5·norm(area_m²) + 0.5·norm(change_magnitude). High ≥ 0.66, Medium ≥ 0.33, else Low."
+      style={{
+        position: "absolute",
+        bottom: 12,
+        left: 12,
+        background: "rgba(255,255,255,0.95)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-sm)",
+        padding: "8px 10px",
+        fontSize: "var(--font-size-xs)",
+        zIndex: 5,
+        display: "flex",
+        flexDirection: "column",
+        gap: "4px",
+        cursor: "help",
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: "2px" }}>Severity</div>
+      {[
+        ["High", "#C0392B"],
+        ["Medium", "#E67E22"],
+        ["Low", "#F1C40F"],
+      ].map(([label, color]) => (
+        <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "2px",
+              background: color,
+              border: "1.5px solid rgba(0,0,0,0.3)",
+              display: "inline-block",
+            }}
+          />
+          <span>{label}</span>
+        </div>
+      ))}
     </div>
   );
 }

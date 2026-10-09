@@ -2,6 +2,7 @@
 backend/venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Backend runtime data (uploads, generated previews, sqlite db)
 backend/data/uploads/
@@ -13,6 +14,10 @@ backend/data/population/*
 # Model weights (downloaded separately, see README)
 backend/models/*
 !backend/models/.gitkeep
+
+# Evaluation datasets (downloaded separately, see README) and fetched test imagery
+backend/data/levir_cd/
+backend/data/real_test_pair/
 
 # Node
 frontend/node_modules/

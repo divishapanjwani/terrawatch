@@ -1,40 +1,69 @@
 import { useState } from "react";
+import type { MapGeoJSONFeature } from "maplibre-gl";
+import type { FeatureCollection } from "geojson";
 import "./styles/tokens.css";
 import "./App.css";
 import CompareMap from "./map/CompareMap";
 import FileDropSlot from "./panels/FileDropSlot";
-import { createAnalysis, imageryUrl, pollUntilReady } from "./api/client";
+import PolygonPanel from "./panels/PolygonPanel";
+import {
+  createAnalysis,
+  exportUrl,
+  getPolygons,
+  imageryUrl,
+  pollUntilReady,
+} from "./api/client";
 import type { AnalysisStatus } from "./api/client";
 
 type AppState =
   | { phase: "empty" }
   | { phase: "uploading" }
-  | { phase: "processing"; id: string }
-  | { phase: "ready"; analysis: AnalysisStatus }
+  | { phase: "processing"; id: string; step: string; steps: string[] }
+  | { phase: "ready"; analysis: AnalysisStatus; geojson: FeatureCollection }
   | { phase: "error"; message: string };
+
+const STEP_LABELS: Record<string, string> = {
+  validating: "Validating",
+  detecting: "Detecting",
+  filtering: "Filtering",
+  vectorizing: "Vectorizing",
+  done: "Done",
+};
 
 export default function App() {
   const [state, setState] = useState<AppState>({ phase: "empty" });
   const [beforeFile, setBeforeFile] = useState<File | null>(null);
   const [afterFile, setAfterFile] = useState<File | null>(null);
   const [mode, setMode] = useState<"disaster" | "prevention">("disaster");
+  const [selected, setSelected] = useState<MapGeoJSONFeature | null>(null);
 
   async function handleSubmit() {
     if (!beforeFile || !afterFile) return;
+    setSelected(null);
     setState({ phase: "uploading" });
     try {
       const { analysis_id } = await createAnalysis(beforeFile, afterFile, mode);
-      setState({ phase: "processing", id: analysis_id });
-      const analysis = await pollUntilReady(analysis_id);
+      setState({ phase: "processing", id: analysis_id, step: "validating", steps: [] });
+      const analysis = await pollUntilReady(analysis_id, (status) => {
+        setState({
+          phase: "processing",
+          id: analysis_id,
+          step: status.progress_step,
+          steps: status.progress_steps,
+        });
+      });
       if (analysis.status === "failed") {
         setState({ phase: "error", message: analysis.error_message ?? "Analysis failed" });
       } else {
-        setState({ phase: "ready", analysis });
+        const geojson = await getPolygons(analysis_id);
+        setState({ phase: "ready", analysis, geojson });
       }
     } catch (err) {
       setState({ phase: "error", message: (err as Error).message });
     }
   }
+
+  const ready = state.phase === "ready" ? state : null;
 
   return (
     <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
@@ -128,26 +157,98 @@ export default function App() {
         </section>
 
         {state.phase === "processing" && (
-          <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-            Validating, reprojecting, and generating previews…
-          </p>
+          <section style={{ marginBottom: "20px" }}>
+            {(state.steps.length ? state.steps : ["validating", "detecting", "filtering", "vectorizing", "done"]).map(
+              (step) => {
+                const isDone =
+                  (state.steps.length ? state.steps : []).indexOf(step) <
+                  (state.steps.length ? state.steps : []).indexOf(state.step);
+                const isCurrent = step === state.step;
+                return (
+                  <div
+                    key={step}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "var(--font-size-xs)",
+                      padding: "3px 0",
+                      color: isCurrent ? "var(--color-text)" : "var(--color-text-secondary)",
+                      fontWeight: isCurrent ? 600 : 400,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: isDone || isCurrent ? "var(--color-accent)" : "var(--color-border)",
+                        display: "inline-block",
+                      }}
+                    />
+                    {STEP_LABELS[step] ?? step}
+                  </div>
+                );
+              }
+            )}
+          </section>
         )}
+
         {state.phase === "error" && (
           <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-danger)" }}>{state.message}</p>
         )}
-        {state.phase === "ready" && (
-          <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
-            Analysis <span className="mono">{state.analysis.id}</span> ready.
-          </p>
+
+        {ready && (
+          <section>
+            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
+              Analysis <span className="mono">{ready.analysis.id}</span> ready — {ready.analysis.polygon_count}{" "}
+              change{ready.analysis.polygon_count === 1 ? "" : "s"} found ({ready.analysis.engine}).
+            </p>
+            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+              <a
+                href={exportUrl(ready.analysis.id, "geojson")}
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                  padding: "6px 8px",
+                  fontSize: "var(--font-size-xs)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--color-text)",
+                  textDecoration: "none",
+                }}
+              >
+                Export GeoJSON
+              </a>
+              <a
+                href={exportUrl(ready.analysis.id, "gpkg")}
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                  padding: "6px 8px",
+                  fontSize: "var(--font-size-xs)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--color-text)",
+                  textDecoration: "none",
+                }}
+              >
+                Export GPKG
+              </a>
+            </div>
+          </section>
         )}
       </aside>
 
       <main style={{ flex: 1, position: "relative", background: "var(--color-bg)" }}>
-        {state.phase === "ready" && state.analysis.bounds ? (
+        {ready && ready.analysis.bounds ? (
           <CompareMap
-            beforeUrl={imageryUrl(state.analysis.id, "before")}
-            afterUrl={imageryUrl(state.analysis.id, "after")}
-            bounds={state.analysis.bounds}
+            beforeUrl={imageryUrl(ready.analysis.id, "before")}
+            afterUrl={imageryUrl(ready.analysis.id, "after")}
+            bounds={ready.analysis.bounds}
+            geojson={ready.geojson}
+            selectedId={selected ? String(selected.properties?.id) : null}
+            onPolygonClick={setSelected}
           />
         ) : (
           <div
@@ -164,6 +265,7 @@ export default function App() {
             <p>Upload a before/after GeoTIFF pair to begin.</p>
           </div>
         )}
+        {ready && <PolygonPanel feature={selected} onClose={() => setSelected(null)} />}
       </main>
     </div>
   );

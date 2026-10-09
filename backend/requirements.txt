@@ -7,3 +7,14 @@ pillow
 sqlmodel
 shapely
 pyproj
+scikit-image
+scipy
+geopandas
+fiona
+torch
+torchvision
+pytest
+
+# Phase 6 auto-fetch (also used by scripts/fetch_real_test_pair.py today)
+pystac-client
+planetary-computer
