@@ -26,6 +26,18 @@ inspect it.
 > where people are likely to be affected — and the same engine flags risky
 > construction before the next disaster.
 
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | How to use the app end to end — upload/auto-fetch, reading the map and priority queue, exports. |
+| [`docs/CASE_STUDY_WAYANAD.md`](docs/CASE_STUDY_WAYANAD.md) | The Wayanad landslide case study written up in full, with methodology and results. |
+| [`docs/IMPACT_AND_DEPLOYMENT.md`](docs/IMPACT_AND_DEPLOYMENT.md) | The problem in India, who this is for, and a deployment plan. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module breakdown, API request/response examples, severity/priority formulas. |
+| [`docs/EVALUATION.md`](docs/EVALUATION.md) | Datasets, metrics, full ablation table, known failure cases. |
+| [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) | Engine 2 (the OSCD U-Net) model card. |
+| [`docs/OVERNIGHT_DEVELOPMENT.md`](docs/OVERNIGHT_DEVELOPMENT.md) | Everything built after 8 PM on 9 Oct, with real numbers and screenshots — see "Overnight Development" below. |
+
 ## Screenshots
 
 | Landing | Results — split-view map |

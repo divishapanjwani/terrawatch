@@ -241,3 +241,88 @@ limitation of the rule-based classifier, not a new bug.
 Screenshots: `01_case_studies_gallery.png` (all 4 thumbnails), `02_case_study_loaded.png` (Sikkim GLOF loaded, real severity-colored polygons along the Teesta valley).
 
 Backend: 71/71 tests still pass. Frontend: `tsc -b` + `vite build` clean.
+
+## Session 3 (10 Oct 2026 morning, branch `overnight-v3`)
+
+Resumed with PR #4 and Item 1 already on `main`. Setup: fixed a local
+Makefile bug (`$(VENV_BIN)` resolved to `backend/backend/venv/bin/...`
+after the `cd backend &&` targets already changed directory — fixed to a
+plain `venv/bin/...`), merged teammates' new `docs/IMPACT_AND_DEPLOYMENT.md`
+/ `docs/USER_GUIDE.md` / `docs/CASE_STUDY_WAYANAD.md` (added directly to
+`main` by teammates, pulled and merged cleanly, now linked from the
+README's new "Documentation" table), reconfirmed the Wayanad demo and a
+live "Pune, Maharashtra" place-fetch both work end to end (41 kept / 60
+rejected on the geocoded Pune city-center bbox — a different, wider area
+than the curated Punawale/Ravet case study, which is the point: it's the
+generic "any place" path, not a special case).
+
+### Item A, part 1: blocked-route checker — DONE
+
+**What it does:** for every kept polygon that intersects an OSM road, an
+osmnx drive-network graph (cached to disk like `facilities.py`'s Overpass
+cache, same ~15 km buffer) is used to check whether the nearest hospital
+is still reachable with that road's edges removed. Sets `route_impact`
+(`none` / `detour` / `no_alternative` / `unknown`) and `detour_m` per
+polygon — `None` (not `"none"`) for polygons that don't touch a road at
+all, so "checked, no impact" is never confused with "not applicable."
+
+**Priority score:** `route_impact` now has a real weight — the w5 slot
+was reserved at 0.0 since Phase 5. Weights rebalanced from
+0.35/0.25/0.2/0.2/0.0 to **0.30/0.20/0.15/0.15/0.20** (severity still
+weighted highest). `priority_reason` cites a blockage with the exact
+required wording, e.g. *"High severity; ~936 people estimated nearby;
+576 m from a school; nearest hospital route may be cut off (possible
+blockage — verify on ground)."*
+
+**Real numbers, Wayanad (Disaster mode, Auto engine), 179 kept polygons:**
+
+| route_impact | count |
+|---|---|
+| not applicable (no road touched) | 146 |
+| `none` (touches a road, but unaffected) | 19 |
+| `no_alternative` | **10** |
+| `detour` | 4 |
+
+The #1 priority item — the landslide itself — is `route_impact:
+no_alternative`: the road through Mundakkai/Chooralmala is genuinely a
+single mountain road with no alternate path to the nearest hospital once
+blocked, which matches real reporting on this landslide (the access road
+was destroyed, isolating the area). This is a real, honest signal, not
+tuned to look good — 10 isolated segments out of 179 kept polygons in a
+sparse hill road network is a plausible, checkable number.
+
+**On-demand route geometry** (`GET /api/analyses/{id}/polygons/{id}/route`):
+returns the original and (if one exists) detour path node coordinates
+for the map to draw when a polygon is selected — not precomputed/stored
+for all 179 polygons, which would bloat the export. Caught and fixed a
+real bug here during testing: the bulk pipeline step and this endpoint
+initially used two different edge-intersection implementations (a
+geopandas spatial join vs. a manual bbox-filtered Python loop), which
+disagreed on a borderline/boundary-touching polygon (bulk said `detour`,
+on-demand said `none` for the same polygon). Fixed by sharing one
+edge-lookup helper; reverified identical results on one sample polygon
+per `route_impact` value via curl.
+
+**New system dependencies** (not in `requirements.txt` before):
+`osmnx` + `networkx` (route graph) and `scikit-learn` (required by
+`osmnx.distance.nearest_nodes` on an unprojected lat/lon graph — this
+wasn't obvious until it failed at runtime with `ImportError: scikit-learn
+must be installed`, not at `pip install` time).
+
+**Frontend:** `CompareMap` draws the route on both before/after maps
+(Gotcha #4 from `HANDOFF.md` applies here too — had to add the layer/
+effect to both `MLMap` instances) — teal when unaffected, amber dashed
+for a detour, red dashed for no alternative. `PolygonPanel` shows a
+"Route impact" row and an amber/red banner with the required wording.
+
+**Verified end-to-end via Playwright** (not just curl): loaded the
+Wayanad demo, selected the #1 priority item (the landslide), confirmed
+the "Nearest-hospital route may be cut off — possible blockage — verify
+on ground" banner, the "Route impact: no alternative" detail row, and
+the red dashed route line all render with no console errors. Screenshot:
+`04_blocked_route.png`.
+
+6 new unit tests (`backend/tests/test_routes.py`, pure graph logic on a
+small synthetic graph, no network calls — runs in CI). 77/77 backend
+tests pass (71 existing + 6 new). Frontend: `tsc -b` + `vite build`
+clean. Merged into `main`.
