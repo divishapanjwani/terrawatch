@@ -160,17 +160,17 @@ The following values were reported by the TerraWatch application's latest Wayana
 |---|---:|
 | Changes retained | 179 |
 | High-severity detections | 19 |
-| Total detected area | Approximately 1.56 km² |
+| Total changed area (all 179 kept changes) | Approximately 3.7 km² |
+| Largest detection (landslide debris path, ranked #1) | Approximately 1.56 km² (1,556,600 m²), High severity, 94% confidence |
 | Estimated population associated with detected areas | Approximately 6,695 people |
 | Highest-priority detection | Rank 1 |
 
 **Important:** These figures are application outputs, not independently verified measurements of the real disaster. The retained detections and total area should be checked against the exported analysis results before publication.
 
-### 6.1 Interpretation of the results
-
+### 6.1 Largest detection — approximately 1.56 km²
 **Retained changes — 179**
 
-The application retained 179 candidate changes for further review. This indicates that the workflow produced a set of mapped locations that can be investigated individually.
+The application's largest retained change, the landslide debris path ranked #1, covers approximately 1.56 km². All 179 retained changes together cover approximately 3.7 km².
 
 A high or low detection count alone does not establish accuracy. Some detections may correspond to landslide-related changes, while others may represent unrelated changes or errors.
 
@@ -199,6 +199,9 @@ Population estimates derived from gridded population data do not establish how m
 The priority queue orders detections for investigation. A high-ranked detection may be worth reviewing early because of its severity or proximity to population and facilities.
 
 A priority rank is a decision-support indicator, not a confirmation that a location suffered the greatest real-world damage.
+### 6.2 Road access
+
+TerraWatch's blocked-route checker found that the #1 detection (the landslide path) intersects the road to the nearest hospital with **no alternative route** in the OpenStreetMap road network — flagged as a possible blockage to verify on the ground. Across all 179 retained changes, 10 were flagged "no alternative route" and 4 "detour". This is consistent with reports that the affected villages were cut off after the landslide.
 
 ## 7. Comparison with Authoritative Evidence
 
@@ -309,7 +312,7 @@ The Wayanad landslides of 30 July 2024 provide a relevant real-world scenario fo
 
 TerraWatch AI's demonstration produces mapped candidate changes, severity categories, area estimates, population context and a priority queue. These outputs could help analysts organise the review of satellite observations and identify locations for further investigation.
 
-The reported demo results—179 retained changes, 19 high-severity detections, approximately 1.56 km² of detected change area and an estimated population of approximately 6,695—describe the application's current outputs rather than independently confirmed disaster impacts.
+The reported demo results—179 retained changes, 19 high-severity detections,approximately 3.7 km² of retained change area, with the largest detection (the landslide path) covering about 1.56 km² and an estimated population of approximately 6,695—describe the application's current outputs rather than independently confirmed disaster impacts.
 
 The next important step is spatial validation against authoritative reference data, supported by careful image-quality checks and, where possible, field observations.
 
@@ -341,6 +344,4 @@ With transparent validation, reproducible processing and appropriate human overs
 8. **ScienceDirect.** Preliminary analysis of the July 30, 2024, Wayanad landslide disaster in India: Causes and impacts.  
    https://doi.org/10.1016/j.nhres.2025.04.005
 
----
 
-**Reproducibility note:** Before submitting this case study, confirm the TerraWatch metrics against the latest demo output, add the exact image acquisition dates and data sources used by the application, and include a screenshot of the actual detection map. Do not claim a measured accuracy or verified overlap unless you have completed the corresponding validation.
