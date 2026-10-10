@@ -8,7 +8,9 @@
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**Live demo:** _add link_ &nbsp;·&nbsp; **Demo video:** _add link_ &nbsp;·&nbsp; **Slides:** _add link_
+### 📺 Demo video: _add link_ &nbsp;·&nbsp; 📑 Slides: _add link_
+
+**Live demo:** Not deployed — run locally with `make setup && make demo` (see "Quick start" below).
 
 </div>
 
@@ -25,6 +27,35 @@ inspect it.
 > it. TerraWatch tells them which changes are real, why the rest aren't, and
 > where people are likely to be affected — and the same engine flags risky
 > construction before the next disaster.
+
+## Overnight development, in short
+
+Work completed after 8 PM on 9 Oct (full log with every number and
+screenshots: [`docs/OVERNIGHT_DEVELOPMENT.md`](docs/OVERNIGHT_DEVELOPMENT.md)):
+
+- **Any place in India, one click** — auto-fetch by place name or a
+  drawn box (Nominatim + Sentinel-2 L2A via Planetary Computer), plus a
+  **Case Studies gallery** with 4 real events: Wayanad landslide, Sikkim
+  GLOF, Himachal Pradesh floods, Pune urban growth.
+- **Blocked-route checker** — for Wayanad's 179 kept changes, **10 are
+  flagged `no_alternative`** (nearest hospital unreachable) and 4 more
+  `detour`, computed on a real OSM drive-network graph and folded into
+  the priority score.
+- **Field reports in English, हिंदी and मराठी** — one-click PDF/HTML
+  with KPIs, a severity-colored map snapshot, and the top 10 priority
+  areas, built entirely from computed values (no LLM).
+- **Fixed a real Sentinel-2 bug**: a 2022 processing-baseline offset was
+  producing a false **30.4 km² "change" polygon (70% of the scene)**
+  when comparing pre/post-2022 imagery — fixed and verified down to
+  **0.3 km² (0.7%)**, with a quality-report safeguard against it
+  recurring.
+- **Severity scoring fixed**: Wayanad's severity distribution was
+  **0 High / 2 Medium / 177 Low** (the landslide itself scored only
+  "Medium") — now **19 High / 79 Medium / 81 Low**, with the landslide
+  correctly ranked #1.
+- **Test suite grew 69 → 99** backend tests, all passing, alongside the
+  new features above (route checker, BOA-offset fix, draw-a-box size
+  guard, localized field-report text).
 
 ## Documentation
 
@@ -357,3 +388,12 @@ terrawatch/
   backend/                    FastAPI app (Python 3.11) -- see docs/ARCHITECTURE.md
   frontend/                   React + Vite + TypeScript + MapLibre GL
 ```
+
+## Team — HACK4CHANGE
+
+| Name | Role |
+|---|---|
+| **Divisha Panjwani** (lead) | Architecture, AI pipeline, integration |
+| Tanisha Chopade | User guide, Hindi/Marathi localisation review |
+| Bhakti Deshmukh | Wayanad validation case study |
+| Shrawani Akkanavaru | Impact & deployment plan, submission |
