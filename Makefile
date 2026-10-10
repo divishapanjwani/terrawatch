@@ -34,14 +34,14 @@ demo:
 	@echo "Backend:  http://127.0.0.1:8000"
 	@echo "Frontend: http://localhost:5173  (click 'Load Wayanad demo' on the empty state)"
 	@trap 'kill 0' EXIT; \
-	( cd backend && $(VENV_BIN)/uvicorn app.main:app --port 8000 ) & \
+	( cd backend && venv/bin/uvicorn app.main:app --port 8000 ) & \
 	( cd frontend && npm run dev ) & \
 	wait
 
 test: test-backend test-frontend
 
 test-backend:
-	cd backend && $(VENV_BIN)/python -m pytest tests/ -v
+	cd backend && venv/bin/python -m pytest tests/ -v
 
 test-frontend:
 	cd frontend && npm run build
@@ -51,18 +51,18 @@ test-frontend:
 # Needs LEVIR-CD (test split) and/or OSCD + a trained Engine 2 checkpoint --
 # see docs/EVALUATION.md "Reproducing the numbers".
 eval:
-	cd backend && $(VENV_BIN)/python scripts/evaluate.py levircd --ablation || true
-	cd backend && $(VENV_BIN)/python scripts/evaluate.py oscd --engine spectral --ablation || true
-	cd backend && $(VENV_BIN)/python scripts/evaluate.py oscd --engine engine2 --ablation || true
+	cd backend && venv/bin/python scripts/evaluate.py levircd --ablation || true
+	cd backend && venv/bin/python scripts/evaluate.py oscd --engine spectral --ablation || true
+	cd backend && venv/bin/python scripts/evaluate.py oscd --engine engine2 --ablation || true
 
 lint:
-	cd backend && $(VENV_BIN)/ruff check app scripts tests
-	cd backend && $(VENV_BIN)/black --check app scripts tests
+	cd backend && venv/bin/ruff check app scripts tests
+	cd backend && venv/bin/black --check app scripts tests
 	cd frontend && npm run format:check
 
 format:
-	cd backend && $(VENV_BIN)/ruff check app scripts tests --fix
-	cd backend && $(VENV_BIN)/black app scripts tests
+	cd backend && venv/bin/ruff check app scripts tests --fix
+	cd backend && venv/bin/black app scripts tests
 	cd frontend && npm run format
 
 clean:
