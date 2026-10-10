@@ -255,6 +255,25 @@ Siamese CNN by [Andrea Codegoni et al.](https://github.com/AndreaCodegoni/Tiny_m
 trained on LEVIR-CD — see that repository for its own license. Engine 2 (the
 OSCD U-Net) is trained from scratch in this repo — see `docs/MODEL_CARD.md`.
 
+## Overnight Development (after Round 2, 9–10 Oct 2026)
+
+Judging weights "Overnight Development" (work after 8:00 PM on 9 Oct) at
+50%. Full log with real numbers, before/after results, and screenshots:
+**[`docs/OVERNIGHT_DEVELOPMENT.md`](docs/OVERNIGHT_DEVELOPMENT.md)**.
+
+Short version: a dark UI redesign; a severity/priority ranking fix (the
+Wayanad landslide was miscounted into "Medium" severity, collapsing the
+severity distribution to 0 High / 2 Medium / 177 Low and dropping the
+landslide out of the #1 priority rank — fixed to 19 High / 79 Medium / 81
+Low with the landslide robustly back at #1); KPI-strip and Accuracy-page
+display fixes; 4 real UI bugs found via browser-driven testing (not just
+screenshots); and the README/docs/CI/model-card submission package (PR
+#4). Everything after that in the linked doc is new work built in this
+session: any-place-in-India auto-fetch + a case-study gallery, an
+all-weather Sentinel-1 radar mode, an action layer (blocked-route
+checking + multilingual field reports), and terrain-aware filtering —
+each shipped only once tested and merged to `main`.
+
 ## Honesty rules (enforced in the product, not just this README)
 
 - Change detection ≠ damage assessment — severity measures change

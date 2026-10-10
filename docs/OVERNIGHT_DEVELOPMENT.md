@@ -1,0 +1,181 @@
+# Overnight Development (after Round 2, 9–10 Oct 2026)
+
+This log covers everything built **after 8:00 PM IST on 9 Oct 2026**, in two
+sessions: the overnight push that produced the Round 2 submission (dark UI
+redesign, ranking/severity fixes, the README/docs/CI package in PR #4), and
+the Round-2-to-Round-3 push on top of it (this document's later sections,
+appended as each item ships). Every number below is read from a real git
+commit, test run, or live export — nothing here is a target or an estimate
+unless explicitly labeled one, matching the project's own honesty rule (see
+`README.md`'s "Honesty rules" section).
+
+Timestamps are from `git log --date=iso` (IST, `+0530`). The cutoff commit
+is `d5c8a7b` (04:18:15, 10 Oct) — the last commit before 20:00 on 9 Oct is
+`d05bbca` (19:42:27, 9 Oct).
+
+## Session 1: overnight push to the Round 2 submission (branch `ui-redesign` → `submission`, merged as PR #4)
+
+### 1. Dark UI redesign (`ui-redesign` branch, 11 commits, 04:30–05:03 IST)
+
+Frontend-only redesign replacing `PROJECT_BRIEF.md` Section 10's light
+design brief with a dark one — no backend, detection, filter, or priority
+logic touched; same component state and handlers throughout, just
+restyled, plus a few genuinely new additive pieces.
+
+- Dark palette (`#0B1215` / `#111B1F` / `#18252A` surfaces, `#2FD3C1` teal
+  accent, fixed severity colors), Inter + JetBrains Mono, `lucide-react`
+  icons — `frontend/src/styles/tokens.css` + `design-system.css`.
+- New: explicit Priority queue / Change details tabs, a KPI strip, a
+  one-click "Load Wayanad demo" landing button, a Settings "Reset to
+  defaults" action.
+- Commits: `d795362` (design system + app shell + landing + processing +
+  KPIs), `3e31fba` (map overlays, dark theme, scale bar, cursor coords),
+  `1fe3227` (right-panel Priority/Details tabs), `ca2a0eb` (Accuracy +
+  Settings pages), `a3c9669` (two cursor/event bugs — see §3 below),
+  `2d08402` (severity/ranking/KPI/accuracy fixes — see §2 below).
+
+**After** (current `main`, this repo): see `docs/screenshots/landing.png`,
+`results_map.png`, `priority_queue.png`, `accuracy.png` (committed in PR
+#4) and the fresh `00_baseline_wayanad.png` captured below in "Setup
+verification". No "before" screenshot of the light design exists in this
+repo — Phase 1–5 development didn't commit UI screenshots, only this
+overnight session started doing so.
+
+### 2. Severity/ranking fix — the headline numbers
+
+**Problem found** (commit `2d08402`, 05:02:24 IST): on the real Wayanad
+pair, `app/pipeline/severity.py` produced **0 High / 2 Medium / 177 Low**
+kept polygons, with the landslide itself (1,556,600 m², 94% confidence)
+scored only "Medium" — and consequently ranked outside the top of the
+priority queue, behind polygons with near-zero population nearby.
+
+**Root cause:** plain min–max normalization of `area_m2` averaged with
+`change_magnitude`. The landslide's area (1.56M m²) is such an outlier
+against the next-largest kept polygon (141,200 m²) that it stretched the
+0–1 normalization range so far that nearly every other real polygon
+compressed toward zero — and even the landslide itself got pulled down by
+averaging with a middling `change_magnitude`.
+
+**Fix:** `sev_score = max(norm(log1p(area_m2)), norm(log1p(change_magnitude)))`
+— log-scaling keeps normalization meaningful across orders of magnitude,
+and `max()` (not an average) means a polygon is severe if it's either very
+large *or* very intense, without one weak factor capping the other.
+
+**Result:**
+
+| | Before | After |
+|---|---|---|
+| Severity distribution (kept, Wayanad) | 0 High / 2 Medium / 177 Low | **19 High / 79 Medium / 81 Low** |
+| Landslide severity | Medium | **High (sev_score 1.000)** |
+| Landslide priority rank | outside the top ranks (as low as **#3** observed in testing before this fix) | **#1**, robustly (priority_score 0.680 vs. #2's 0.624 — not a knife-edge result) |
+
+New real top 5 on Wayanad (Disaster mode, Auto engine) after the fix:
+#1 `landslide_bare_soil` 1,556,600 m² High (0.680), #2 `structure_lost`
+21,200 m² Medium (0.624), #3 `other` 126,500 m² High (0.620), #4 `other`
+141,000 m² High (0.527), #5 `other` 45,900 m² Medium (0.482).
+
+6 new/updated regression tests in `backend/tests/test_severity.py` encode
+both the severity formula and the ranking outcome. UI tooltips (map legend
++ polygon details) updated to show the new formula. No "before" screenshot
+exists — this was caught and verified through the live app and the test
+suite, not a screenshot comparison; the current state is the same
+`results_map.png` / `priority_queue.png` referenced above.
+
+### 3. KPI and Accuracy-page fixes (commit `2d08402`)
+
+- **KPI strip:** "People affected" showed a raw, unrounded float with no
+  thousands separator (`6695.3`). `KpiStrip` now takes an explicit
+  `decimals` prop instead of inferring formatting from
+  `Number.isInteger`; the people card uses `decimals=0` with a `~` prefix
+  and `(estimate)` suffix → **`~6,695 (estimate)`**. Relabeled "People in
+  changed areas". Count cards (changes kept, rejected, priority areas)
+  already had no decimals; area (a continuous km² measurement) keeps 1
+  decimal place. Confirmed live in the current app (see "Setup
+  verification" below) and in `README.md`'s case-study table, which
+  already reads `~6,695`, not `6,695.3`.
+- **Accuracy page:** metric cards now show `raw X → with filter Y` under
+  the headline F1 (e.g. TinyCD: `raw 0.914 → with filter 0.903`), matching
+  what the detailed ablation table already presented, so raw-vs-filtered
+  is never ambiguous at a glance.
+
+### 4. The 4 UI bugs found and fixed
+
+Found via Playwright click/hover/build testing against the real running
+app — not just eyeballing screenshots. Documented here because they're the
+kind of bug a screenshot alone would miss (the page renders fine; the
+interaction is broken).
+
+1. **Reactive layer-sync effects checked a hardcoded source name.** The
+   before/after split view uses two independent MapLibre instances whose
+   image sources are named `"before-img"` and `"after-img"` respectively.
+   An effect gating Population/Facilities/Roads layers on
+   `map.getSource("before-img")` for *both* maps was always false on the
+   after-map, so those layers silently never attached there — a
+   screenshot of the rendered map looked completely plausible. Fixed with
+   a `mapHasImage()` helper that checks either source name, and dropped a
+   flaky `isStyleLoaded()` gate (`frontend/src/map/CompareMap.tsx`).
+   Caught by instrumenting a test script with `queryRenderedFeatures`, not
+   by looking at a screenshot.
+2. **A custom `Switch` component rooted in `<span>` instead of `<label>`.**
+   Clicking the visible toggle never reached the visually-hidden
+   `<input>` underneath — every toggle in the app was unclickable despite
+   looking and rendering correctly.
+3. **`tsc --noEmit` doesn't catch everything the real build does.** `tsc
+   -b` (what `npm run build` actually runs) caught a MapLibre event-type
+   error on `"mouseleave"` at the whole-map level (that event needs a
+   layer id; the whole-map case needs `"mouseout"` instead) that
+   `--noEmit` alone missed.
+4. **A mousemove/click handler added to one side of the swipe map must be
+   added to *both* `MLMap` instances**, since the swipe divider means
+   either side can be under the cursor. This one recurred three separate
+   times — across the hover-glow, hazard-zone draw, and cursor-coordinate
+   features — before being treated as a standing rule rather than a
+   one-off fix.
+
+### 5. README/docs/CI/model-card submission package (PR #4, `submission` branch, 05:10–05:19 IST, merged as `ca033d4`)
+
+- Rewrote `README.md` as the main entry point: pitch, CI/Python/license
+  badges, a problem-statement-requirements → implementation table (exact
+  brief wording, file paths, verification steps), a "beyond the brief"
+  table, a Mermaid architecture diagram, and real results tables.
+- Added `docs/ARCHITECTURE.md`, `docs/EVALUATION.md`, `docs/MODEL_CARD.md`.
+- Added CI (`.github/workflows/ci.yml`: backend pytest + ruff/black,
+  frontend `tsc -b` build + prettier check) and a `Makefile`
+  (`setup`/`demo`/`test`/`eval`/`lint`/`format`).
+- Committed `sample_data/wayanad/` (~11.8 MB) so a fresh clone can run the
+  demo with no live Planetary Computer access.
+- Code hygiene: black + ruff across the backend, prettier across the
+  frontend, MIT `LICENSE`.
+- Verified behavior-neutral: 71/71 backend tests pass before and after,
+  `check_results.py` scores identically (precision 0.73 / recall 0.96 /
+  F1 0.83), frontend builds clean before and after.
+- Merged into `main` as PR #4 (`https://github.com/divishapanjwani/terrawatch/pull/4`), `ca033d4`.
+
+## Setup verification (this session, before starting Round 3 work)
+
+- `git checkout main && git pull && gh pr merge 4 --merge` → PR #4 merged
+  (`ca033d4`), `git checkout -b overnight-v2`.
+- `cd backend && python -m pytest tests/ -v` → **71 passed**.
+- Wired up the Wayanad demo pair (`sample_data/wayanad/{before,after}.tif`
+  → `frontend/public/demo/wayanad_*.tif` + `backend/data/wayanad/*.tif`,
+  gitignored, per `HANDOFF.md`'s documented setup step).
+- Started backend (`:8000`) + frontend (`:5173`), drove the app headlessly
+  with Playwright, clicked "Load Wayanad demo", and confirmed the full
+  pipeline end to end with **no console errors**:
+  - 187 candidates → **179 kept, 8 rejected** (cloud: 7, vegetation_seasonal: 1)
+  - Severity: **19 High / 79 Medium / 81 Low**
+  - Area changed: **3.7 km²**
+  - People in changed areas: **~6,695 (estimate)**
+  - Priority areas within 2 km of a hospital/school: **74**
+  - Quality report: cloud (before) 10.3%, cloud (after) 0.0%, SCL method,
+    misalignment 0.1 px, resolution 10.0 m, 6 bands.
+
+Screenshot: `~/Desktop/screenshots/overnight/00_baseline_wayanad.png`.
+
+---
+
+## Round 3 items (this session)
+
+Each item below is appended only once it's implemented, tested, and merged
+into `main` — see the per-item entries that follow for real numbers and
+screenshots.
