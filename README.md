@@ -8,7 +8,7 @@
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-### 📺 Demo video: _add link_ &nbsp;·&nbsp; 📑 Slides: _add link_
+### 📺 Demo video: _add link_ &nbsp;·&nbsp; 📑 Slides: [Final round deck (PDF)](docs/TerraWatch_Final_Round.pdf)
 
 **Live demo:** Not deployed — run locally with `make setup && make demo` (see "Quick start" below).
 
