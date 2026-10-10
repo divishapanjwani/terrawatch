@@ -363,7 +363,7 @@ Static UI chrome (a sample, English → Hindi → Marathi):
 
 | English | Hindi | Marathi |
 |---|---|---|
-| TerraWatch Field Report | टेराواच फ़ील्ड रिपोर्ट | टेरावॉच फील्ड अहवाल |
+| TerraWatch Field Report | टेरावॉच फ़ील्ड रिपोर्ट | टेरावॉच फील्ड अहवाल |
 | Automated analysis — verify before official use. | स्वचालित विश्लेषण — आधिकारिक उपयोग से पहले सत्यापित करें। | स्वयंचलित विश्लेषण — अधिकृत वापरापूर्वी पडताळणी करा. |
 | Changes kept / False alarms rejected | पुष्ट परिवर्तन / अस्वीकृत झूठे अलार्म | निश्चित बदल / नाकारलेले खोटे इशारे |
 | People in changed areas (estimate) | प्रभावित क्षेत्रों में अनुमानित लोग | प्रभावित भागातील अंदाजे लोक |
