@@ -326,3 +326,88 @@ the red dashed route line all render with no console errors. Screenshot:
 small synthetic graph, no network calls — runs in CI). 77/77 backend
 tests pass (71 existing + 6 new). Frontend: `tsc -b` + `vite build`
 clean. Merged into `main`.
+
+### Item A, part 2: PDF/HTML field report, English/Hindi/Marathi — DONE
+
+**What it does:** `GET /api/analyses/{id}/report?format=pdf|html&lang=en|hi|mr`
+builds a one-page field report straight from already-computed results —
+no LLM call, nothing invented. KPI strip (kept/rejected counts, area
+changed, people estimate), a map snapshot (the after-image preview with
+severity-colored polygon outlines drawn on top, same palette as the live
+map), the top 10 priority areas as a table (type, area, people estimate,
+nearest hospital + distance, route impact, the full priority reason,
+a Google Maps link), and the same 4 honesty notes as this README's
+"Honesty rules" section. `format=html` is the mobile-friendly page
+(single column, readable at 375px, ~130 KB self-contained with an
+embedded/downscaled snapshot image — light enough for WhatsApp);
+`format=pdf` renders the identical content via WeasyPrint.
+
+**A real bug found during testing, not just "looks fine":** the first
+version reused `priority_reason` — a pre-built English sentence from
+`app/pipeline/priority.py` — directly in the Hindi/Marathi reports, so
+every row's "Reason" column stayed in English regardless of the
+language picked. Fixed by adding `_localized_reason()`
+(`app/reports/field_report.py`), which rebuilds the same sentence from
+the underlying computed values (severity, population estimate, nearest
+facility distance, route impact) using per-language phrase templates
+(`app/reports/i18n.py`) instead of reusing the English string — verified
+by checking the literal word "severity" doesn't appear in the Hindi/
+Marathi output (`tests/test_field_report.py`).
+
+**Hindi and Marathi template text — for native-speaker review.** These
+are AI-drafted first-draft translations, not yet reviewed by a native
+speaker; flagged here and in the README rather than presented as final.
+Full source: `backend/app/reports/i18n.py`.
+
+Static UI chrome (a sample, English → Hindi → Marathi):
+
+| English | Hindi | Marathi |
+|---|---|---|
+| TerraWatch Field Report | टेराواच फ़ील्ड रिपोर्ट | टेरावॉच फील्ड अहवाल |
+| Automated analysis — verify before official use. | स्वचालित विश्लेषण — आधिकारिक उपयोग से पहले सत्यापित करें। | स्वयंचलित विश्लेषण — अधिकृत वापरापूर्वी पडताळणी करा. |
+| Changes kept / False alarms rejected | पुष्ट परिवर्तन / अस्वीकृत झूठे अलार्म | निश्चित बदल / नाकारलेले खोटे इशारे |
+| People in changed areas (estimate) | प्रभावित क्षेत्रों में अनुमानित लोग | प्रभावित भागातील अंदाजे लोक |
+| Top priority areas | शीर्ष प्राथमिकता वाले क्षेत्र | सर्वोच्च प्राधान्य क्षेत्रे |
+| No alternative route | कोई वैकल्पिक मार्ग नहीं | पर्यायी मार्ग नाही |
+| What this report does and doesn't say | यह रिपोर्ट क्या कहती है और क्या नहीं | हा अहवाल काय सांगतो आणि काय सांगत नाही |
+
+The 4 honesty notes:
+
+| # | English | Hindi | Marathi |
+|---|---|---|---|
+| 1 | Change detection is not damage assessment — severity measures how much change occurred, not confirmed damage. | परिवर्तन का पता लगाना क्षति आकलन नहीं है — गंभीरता परिवर्तन की मात्रा मापती है, पुष्ट क्षति नहीं। | बदल शोधणे म्हणजे नुकसानीचे मूल्यांकन नाही — तीव्रता बदलाचे प्रमाण मोजते, निश्चित नुकसान नाही. |
+| 2 | Every people-affected number is an estimate from a population grid, not a headcount. | प्रभावित लोगों की हर संख्या जनसंख्या ग्रिड से एक अनुमान है, वास्तविक गिनती नहीं। | प्रभावित लोकांची प्रत्येक संख्या लोकसंख्या ग्रिडवरून केलेला अंदाज आहे, प्रत्यक्ष मोजणी नाही. |
+| 3 | Road blockages are a graph-reachability signal only — "possible blockage, verify on ground," never a confirmed closure. | सड़क अवरोध केवल एक मार्ग-संपर्क संकेत है — "संभावित अवरोध, ज़मीन पर सत्यापित करें," कभी भी पुष्ट बंद नहीं। | रस्ता अडथळा हा केवळ मार्ग-संपर्क सूचक आहे — "संभाव्य अडथळा, जागेवर पडताळणी करा," कधीही निश्चित बंद नाही. |
+| 4 | This report is generated directly from computed analysis results. No AI-generated facts are included. | यह रिपोर्ट सीधे गणना किए गए विश्लेषण परिणामों से तैयार की गई है। इसमें कोई AI-जनित तथ्य शामिल नहीं हैं। | हा अहवाल थेट मोजलेल्या विश्लेषण निकालांमधून तयार केला आहे. यात कोणतीही AI-निर्मित माहिती समाविष्ट नाही. |
+
+Per-row reason sentence, reconstructed (not translated verbatim) from
+computed values — real Wayanad #1 priority row:
+
+- **EN:** "High severity; ~936 people estimated nearby; 576 m from a school; nearest hospital route may be cut off (possible blockage — verify on ground)."
+- **HI:** "उच्च गंभीरता; आसपास ~936 लोगों के प्रभावित होने का अनुमान; स्कूल से 576 मी; निकटतम अस्पताल तक का मार्ग अवरुद्ध हो सकता है (संभावित अवरोध — ज़मीन पर सत्यापित करें)."
+- **MR:** "उच्च तीव्रता; जवळपास अंदाजे ~936 लोक प्रभावित; शाळेपासून 576 मी; जवळच्या रुग्णालयाचा मार्ग बंद होऊ शकतो (संभाव्य अडथळा — जागेवर पडताळणी करा)."
+
+**Verified on Wayanad (179 kept, 8 rejected):** HTML report ~131 KB (EN),
+~133 KB (HI/MR, a bit larger — Devanagari text). PDF: 5 pages, ~113 KB
+(EN), ~124 KB (HI/MR). Map snapshot shows all 179 severity-colored
+polygon outlines correctly positioned over the after image. Devanagari
+renders correctly in both the browser (HTML) and WeasyPrint's PDF output
+(verified visually, not just "the bytes didn't error") — both Hindi and
+Marathi titles are legible, not tofu boxes. Table rows no longer split
+across PDF page breaks (`page-break-inside: avoid`, found and fixed
+during testing — the first PDF render split row #1 awkwardly across
+pages 1 and 2).
+
+**New system dependency:** WeasyPrint needs Pango/Cairo system libraries
+(`brew install pango` on macOS) — not installable via `pip` alone; the
+HTML report works without it, only PDF export needs it. Documented in
+the README prerequisites.
+
+7 new unit tests (`backend/tests/test_field_report.py`) covering the
+localized-reason builder (EN/HI/MR, detour phrasing, hazard-zone prefix,
+no-route-impact case) and `build_context`'s ranking/rounding/missing-
+snapshot handling. 84/84 backend tests pass (77 + 7 new). Frontend:
+`tsc -b` + `vite build` clean; verified end-to-end via Playwright
+(opened the Export menu, switched to Hindi, opened the mobile report in
+a new tab, confirmed the rendered Devanagari text) with no console
+errors. Screenshots: `05_field_report_menu.png`, `06_mobile_report_hi.png`.

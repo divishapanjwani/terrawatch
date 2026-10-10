@@ -6,7 +6,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from sqlmodel import select
 
 from app import config
@@ -476,6 +476,59 @@ async def export_analysis(analysis_id: str, format: str = "geojson"):
     media_type = "application/geo+json" if format == "geojson" else "application/geopackage+sqlite3"
     filename = f"{analysis_id}_changes.{format}"
     return FileResponse(path, media_type=media_type, filename=filename)
+
+
+@router.get("/{analysis_id}/report")
+async def get_field_report(analysis_id: str, format: str = "html", lang: str = "en"):
+    """One-click field report: KPIs, a severity-colored map snapshot, the
+    top 10 priority areas, and honesty notes -- built only from already-
+    computed results (see app/reports/field_report.py), in English/Hindi/
+    Marathi. format=html is the mobile-friendly shareable page;
+    format=pdf renders the same content to PDF (WeasyPrint)."""
+    from app.reports.field_report import build_context, render_html, render_pdf
+    from app.reports.i18n import LANGUAGES
+    from app.reports.map_snapshot import generate_map_snapshot
+
+    if format not in ("html", "pdf"):
+        raise HTTPException(status_code=400, detail="format must be 'html' or 'pdf'")
+    if lang not in LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"lang must be one of {list(LANGUAGES)}")
+
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        if analysis is None:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        if analysis.status != "ready":
+            raise HTTPException(status_code=409, detail="Analysis not ready yet")
+        geojson_path = analysis.geojson_path
+        after_png = analysis.after_png
+        bounds_str = analysis.bounds
+        output_dir = Path(geojson_path).parent
+
+    if not geojson_path or not Path(geojson_path).exists() or not after_png or not bounds_str:
+        raise HTTPException(status_code=409, detail="Report not ready yet")
+
+    fc = json.loads(Path(geojson_path).read_text())
+    kept_features = [f for f in fc["features"] if f["properties"].get("status") == "kept"]
+    west, south, east, north = (float(x) for x in bounds_str.split(","))
+    bounds = {"west": west, "south": south, "east": east, "north": north}
+
+    snapshot_path = output_dir / "report_snapshot.png"
+    if not snapshot_path.exists():
+        generate_map_snapshot(after_png, bounds, kept_features, str(snapshot_path))
+
+    ctx = build_context(analysis, kept_features, lang, str(snapshot_path))
+    html = render_html(ctx)
+
+    if format == "html":
+        return HTMLResponse(html)
+
+    pdf_bytes = render_pdf(html)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{analysis_id}_field_report_{lang}.pdf"'},
+    )
 
 
 @router.get("")

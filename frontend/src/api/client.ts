@@ -169,6 +169,12 @@ export function exportUrl(id: string, format: "geojson" | "gpkg"): string {
   return `${API_BASE}/api/analyses/${id}/export?format=${format}`;
 }
 
+export type ReportLang = "en" | "hi" | "mr";
+
+export function reportUrl(id: string, format: "pdf" | "html", lang: ReportLang): string {
+  return `${API_BASE}/api/analyses/${id}/report?format=${format}&lang=${lang}`;
+}
+
 export interface FacilityPoint {
   lat: number;
   lon: number;

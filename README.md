@@ -180,7 +180,11 @@ docker-compose.yml here would be unverified, and this project's own rule is
 
 **Prerequisites:** Python 3.11 (not 3.13/3.14 — `rasterio`/`torch`/
 `geopandas` don't ship wheels for the newest Python yet; macOS:
-`brew install python@3.11`) and Node.js 20+.
+`brew install python@3.11`), Node.js 20+, and (for the PDF field report,
+`app/reports/field_report.py`) WeasyPrint's system libraries — macOS:
+`brew install pango`; Debian/Ubuntu: `apt-get install libpango-1.0-0
+libpangocairo-1.0-0`. The HTML field report works without this; only
+PDF export needs it.
 
 **Backend:**
 
@@ -306,23 +310,32 @@ each shipped only once tested and merged to `main`.
   uses the actual SCL band.
 - **Engine 2's precision ceiling (~20% on OSCD)** is the model's honest
   limit at ~2M parameters / 14 training scenes — see `docs/MODEL_CARD.md`.
-- **Auto-fetch UI, LLM summaries/"ask the map", and alerts/field reports**
-  from the original project brief (Phases 6–8) are not built in this
-  submission — the one-off fetch scripts (`scripts/fetch_wayanad.py`,
-  `scripts/fetch_real_test_pair.py`) and the core detection/trust/impact
-  pipeline (Phases 1–5) are what this README documents and what's tested.
+- **LLM summaries/"ask the map" and alerts** from the original project
+  brief are not built — auto-fetch (place search + Case Studies gallery),
+  the blocked-route checker, and PDF/HTML field reports (EN/Hindi/Marathi)
+  *are* built; see `docs/OVERNIGHT_DEVELOPMENT.md` for what shipped after
+  Round 2 and real numbers for each.
+- **Draw-a-box for auto-fetch is not built** — the backend accepts a
+  bbox directly (`POST /api/analyses/fetch` with `bbox=west,south,east,north`,
+  tested via curl), but the frontend only exposes place-name search.
+- **Radar mode (Sentinel-1) and terrain-aware filtering (Copernicus DEM)**
+  were scoped for this round but deliberately not attempted — listed here
+  as roadmap, not as "attempted and failed."
 - **No containerized deployment** — see "Quick start" above for why; the
   Makefile path is the verified one.
 - Editing priority weights in Settings applies to the **next** analysis,
   not a live recompute of whatever's already on screen (a deliberate
   simplification, not a bug).
+- The Hindi/Marathi field-report templates (`backend/app/reports/i18n.py`)
+  are AI-drafted and have not yet been reviewed by a native speaker.
 
-Roadmap, in the order the original project brief specifies them: auto-fetch
-UI (place name/bbox → best Sentinel-2 scenes), AI situation summaries
-(EN/Hindi/Marathi) and "ask the map" natural-language filtering, field
-feedback (confirmed/false-alarm buttons feeding back into thresholds),
-Telegram alerts, PDF/HTML field reports, and route-blockage checking
-(`route_impact`, already reserved at weight 0 in the priority formula).
+Roadmap: draw-a-box for auto-fetch, all-weather radar mode (Sentinel-1
+VV/VH log-ratio change detection + a flood-water rule, reusing the
+existing vectorize/filter/priority pipeline), terrain-aware filtering
+(Copernicus DEM GLO-30 slope/hillshade per polygon), AI situation
+summaries and "ask the map" natural-language filtering, field feedback
+(confirmed/false-alarm buttons feeding back into thresholds), and
+Telegram alerts.
 
 ## Repository structure
 
