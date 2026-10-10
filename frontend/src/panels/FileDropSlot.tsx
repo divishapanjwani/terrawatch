@@ -50,7 +50,11 @@ export default function FileDropSlot({ label, file, onChange }: Props) {
         style={{
           border: `1px dashed ${dragging ? "var(--color-accent)" : file ? "var(--color-accent-border)" : "var(--color-border)"}`,
           borderRadius: "var(--radius-sm)",
-          background: dragging ? "var(--color-accent-soft)" : file ? "rgba(47,211,193,0.05)" : "var(--color-panel)",
+          background: dragging
+            ? "var(--color-accent-soft)"
+            : file
+              ? "rgba(47,211,193,0.05)"
+              : "var(--color-panel)",
           padding: "12px",
           fontSize: "var(--font-size-xs)",
           cursor: "pointer",
@@ -64,10 +68,20 @@ export default function FileDropSlot({ label, file, onChange }: Props) {
           <>
             <CheckCircle2 size={16} color="var(--color-accent)" style={{ flexShrink: 0 }} />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="mono" style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div
+                className="mono"
+                style={{
+                  color: "var(--color-text)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {file.name}
               </div>
-              <div style={{ color: "var(--color-text-secondary)", marginTop: "1px" }}>{formatSize(file.size)}</div>
+              <div style={{ color: "var(--color-text-secondary)", marginTop: "1px" }}>
+                {formatSize(file.size)}
+              </div>
             </div>
           </>
         ) : (

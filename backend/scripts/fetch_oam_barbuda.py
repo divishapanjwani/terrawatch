@@ -22,14 +22,15 @@ before tile is a much larger regional mosaic tile; the after tile is a
 small town-block drone survey — their *intersection* is the after tile's
 own extent).
 """
+
 import sys
 from pathlib import Path
 
 import numpy as np
 import rasterio
 import rasterio.warp
-from rasterio.windows import from_bounds
 from rasterio.enums import Resampling
+from rasterio.windows import from_bounds
 
 BEFORE_URL = "/vsicurl/https://oin-hotosm-temp.s3.amazonaws.com/59b7371a23c8440011d7b108/0/929ec9e6-5de3-4105-b643-c9b383bf5e47.tif"
 AFTER_URL = "/vsicurl/https://oin-hotosm-temp.s3.amazonaws.com/59c906e823c8440011d7b20e/0/c8df4d28-9340-40e5-be6d-7f9c424091d2.tif"
@@ -49,8 +50,13 @@ def clip_before(out_path: Path):
         data = src.read(window=window)
         transform = src.window_transform(window)
         meta = {
-            "driver": "GTiff", "height": data.shape[1], "width": data.shape[2],
-            "count": data.shape[0], "dtype": data.dtype, "crs": src.crs, "transform": transform,
+            "driver": "GTiff",
+            "height": data.shape[1],
+            "width": data.shape[2],
+            "count": data.shape[0],
+            "dtype": data.dtype,
+            "crs": src.crs,
+            "transform": transform,
         }
     if data.max() == 0:
         # Mosaic/regional tiles are often padded to a grid with large blank
@@ -87,8 +93,13 @@ def clip_after(out_path: Path):
                 resampling=Resampling.average,
             )
         meta = {
-            "driver": "GTiff", "height": out_height, "width": out_width,
-            "count": src.count, "dtype": src.dtypes[0], "crs": src.crs, "transform": dst_transform,
+            "driver": "GTiff",
+            "height": out_height,
+            "width": out_width,
+            "count": src.count,
+            "dtype": src.dtypes[0],
+            "crs": src.crs,
+            "transform": dst_transform,
         }
     with rasterio.open(out_path, "w", **meta) as dst:
         dst.write(data)

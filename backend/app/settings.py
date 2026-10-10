@@ -3,6 +3,7 @@ once per new analysis in app/pipeline/run.py -- editing them in the
 Settings panel takes effect for the NEXT analysis you run, not analyses
 already on screen (no live recompute).
 """
+
 import json
 
 from app import config

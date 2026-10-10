@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import Session, SQLModel, create_engine
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"

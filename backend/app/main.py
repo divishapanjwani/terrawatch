@@ -1,12 +1,11 @@
 import json
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import init_db, DATA_DIR
 from app.api.analyses import router as analyses_router
 from app.api.settings import router as settings_router
+from app.db import DATA_DIR, init_db
 
 app = FastAPI(title="TerraWatch API")
 

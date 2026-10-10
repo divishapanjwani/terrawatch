@@ -53,7 +53,7 @@ export async function createAnalysis(
   after: File,
   mode: string,
   engine: EngineChoice = "auto",
-  hazardZoneGeojson?: string | null
+  hazardZoneGeojson?: string | null,
 ): Promise<{ analysis_id: string }> {
   const form = new FormData();
   form.append("before", before);
@@ -149,7 +149,7 @@ export async function setPriorityWeights(weights: Partial<PriorityWeights>): Pro
 
 export async function applyHazardZone(
   id: string,
-  polygon: GeoJSON.Polygon
+  polygon: GeoJSON.Polygon,
 ): Promise<{ status: string; in_hazard_zone_count: number }> {
   const res = await fetch(`${API_BASE}/api/analyses/${id}/hazard_zone`, {
     method: "POST",
@@ -174,7 +174,7 @@ export async function pollUntilReady(
   id: string,
   onProgress?: (status: AnalysisStatus) => void,
   intervalMs = 800,
-  timeoutMs = 180000
+  timeoutMs = 180000,
 ): Promise<AnalysisStatus> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {

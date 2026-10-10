@@ -14,9 +14,16 @@ def _make_aligned(before, after, pixel_size=1.0):
     h, w = before.shape[1], before.shape[2]
     mask = np.ones((h, w), dtype=bool)
     return AlignedPair(
-        before=before, after=after, before_mask=mask, after_mask=mask,
-        crs=crs, transform=transform, width=w, height=h,
-        band_count=before.shape[0], dtype=str(before.dtype),
+        before=before,
+        after=after,
+        before_mask=mask,
+        after_mask=mask,
+        crs=crs,
+        transform=transform,
+        width=w,
+        height=h,
+        band_count=before.shape[0],
+        dtype=str(before.dtype),
     )
 
 

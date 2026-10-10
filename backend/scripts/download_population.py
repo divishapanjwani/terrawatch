@@ -7,6 +7,7 @@ Maharashtra) -- no per-region download needed. ~18 MB.
 Source: WorldPop "Global 2000-2020 1km UNadj" series.
 https://www.worldpop.org/methods/populations/
 """
+
 import sys
 import urllib.request
 from pathlib import Path
@@ -15,7 +16,9 @@ URL = (
     "https://data.worldpop.org/GIS/Population/Global_2000_2020_1km_UNadj/"
     "2020/IND/ind_ppp_2020_1km_Aggregated_UNadj.tif"
 )
-OUT_PATH = Path(__file__).resolve().parent.parent / "data" / "population" / "ind_ppp_2020_1km_Aggregated_UNadj.tif"
+OUT_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "population" / "ind_ppp_2020_1km_Aggregated_UNadj.tif"
+)
 
 
 def main():

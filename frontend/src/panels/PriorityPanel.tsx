@@ -41,7 +41,9 @@ type SeverityFilter = (typeof SEVERITY_FILTERS)[number];
 
 const ROWS_PREVIEW = 10;
 
-function nearestFacility(p: Record<string, unknown>): { label: string; dist: number; Icon: typeof Hospital } | null {
+function nearestFacility(
+  p: Record<string, unknown>,
+): { label: string; dist: number; Icon: typeof Hospital } | null {
   const hospM = p.nearest_hospital_m as number | null;
   const schoolM = p.nearest_school_m as number | null;
   const candidates: [number, string, typeof Hospital][] = [];
@@ -80,7 +82,14 @@ export default function PriorityPanel({
 
   return (
     <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
-      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.4 }}>
+      <p
+        style={{
+          fontSize: "var(--font-size-xs)",
+          color: "var(--color-text-secondary)",
+          margin: 0,
+          lineHeight: 1.4,
+        }}
+      >
         {allRows.length} kept changes ranked by severity, confidence, and closeness to a hospital or school.
       </p>
 
@@ -101,7 +110,9 @@ export default function PriorityPanel({
       </div>
 
       {filteredRows.length === 0 && (
-        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)" }}>No kept changes match this filter.</p>
+        <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)" }}>
+          No kept changes match this filter.
+        </p>
       )}
 
       {visibleRows.map((f) => {
@@ -128,13 +139,29 @@ export default function PriorityPanel({
               textAlign: "left",
               padding: "11px 12px",
               cursor: "pointer",
-              borderColor: isSelected ? "var(--color-accent)" : isHovered ? "var(--color-border-strong)" : "var(--color-border)",
-              background: isSelected ? "var(--color-accent-soft)" : isHovered ? "var(--color-card-hover)" : "var(--color-card)",
+              borderColor: isSelected
+                ? "var(--color-accent)"
+                : isHovered
+                  ? "var(--color-border-strong)"
+                  : "var(--color-border)",
+              background: isSelected
+                ? "var(--color-accent-soft)"
+                : isHovered
+                  ? "var(--color-card-hover)"
+                  : "var(--color-card)",
               transition: "background var(--transition-fast), border-color var(--transition-fast)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "7px" }}>
-              <span className="mono" style={{ fontSize: "var(--font-size-sm)", fontWeight: 700, color: "var(--color-text-secondary)", width: "26px" }}>
+              <span
+                className="mono"
+                style={{
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: 700,
+                  color: "var(--color-text-secondary)",
+                  width: "26px",
+                }}
+              >
                 #{Math.round(Number(p.priority_rank))}
               </span>
               <span className={`ts-pill ${SEVERITY_PILL[severity] ?? "ts-pill-neutral"}`}>
@@ -149,12 +176,27 @@ export default function PriorityPanel({
               {CHANGE_TYPE_LABEL[changeType] ?? changeType}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--font-size-xs)", marginBottom: popBuffer || facility ? "6px" : 0 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "var(--font-size-xs)",
+                marginBottom: popBuffer || facility ? "6px" : 0,
+              }}
+            >
               <span className="mono" style={{ color: "var(--color-text-secondary)" }}>
                 {Number(p.area_m2 ?? 0).toLocaleString()} m²
               </span>
               {facility && (
-                <span className="mono" style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                <span
+                  className="mono"
+                  style={{
+                    color: "var(--color-text-secondary)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
                   <facility.Icon size={11} />
                   {facility.label} · {facility.dist.toLocaleString(undefined, { maximumFractionDigits: 0 })} m
                 </span>
@@ -162,13 +204,23 @@ export default function PriorityPanel({
             </div>
 
             {popBuffer != null && popBuffer >= 1 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginBottom: "6px" }}>
-                <Users size={11} />
-                ~{Math.round(popBuffer).toLocaleString()} people estimated nearby
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  fontSize: "var(--font-size-xs)",
+                  color: "var(--color-text-secondary)",
+                  marginBottom: "6px",
+                }}
+              >
+                <Users size={11} />~{Math.round(popBuffer).toLocaleString()} people estimated nearby
               </div>
             )}
 
-            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", lineHeight: 1.4 }}>
+            <div
+              style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", lineHeight: 1.4 }}
+            >
               {String(p.priority_reason ?? "")}
             </div>
           </button>

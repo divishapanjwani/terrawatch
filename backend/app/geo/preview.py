@@ -10,12 +10,13 @@ Rules (see app/geo/align.py for the alignment step this builds on):
   - uint8 input is assumed to already be display-ready (0-255) and is used
     as-is, with no percentile stretch.
 """
+
 from typing import Optional
 
 import numpy as np
 import rasterio
-from rasterio.warp import calculate_default_transform, reproject, Resampling
 from PIL import Image
+from rasterio.warp import Resampling, calculate_default_transform, reproject
 
 from app.geo.align import AlignedPair
 
@@ -56,13 +57,12 @@ def _to_uint8_rgb(rgb: np.ndarray, mask: np.ndarray, stretch: Optional[tuple]) -
     return out
 
 
-def generate_preview_pair(
-    aligned: AlignedPair, before_out_path: str, after_out_path: str
-) -> dict:
+def generate_preview_pair(aligned: AlignedPair, before_out_path: str, after_out_path: str) -> dict:
     """Returns the shared EPSG:4326 bounds {west, south, east, north} used
     by both output PNGs."""
     band_n = min(RGB_BAND_COUNT, aligned.band_count)
     band_idx = list(range(band_n))
+
     # Pad to 3 bands (grayscale replicate) if the source has fewer than 3.
     def _rgb(data: np.ndarray) -> np.ndarray:
         bands = [data[i] for i in band_idx]
@@ -79,7 +79,10 @@ def generate_preview_pair(
 
     dst_crs = "EPSG:4326"
     transform, width, height = calculate_default_transform(
-        aligned.crs, dst_crs, aligned.width, aligned.height,
+        aligned.crs,
+        dst_crs,
+        aligned.width,
+        aligned.height,
         *rasterio.transform.array_bounds(aligned.height, aligned.width, aligned.transform),
     )
     scale = min(1.0, MAX_PREVIEW_DIM / max(width, height))

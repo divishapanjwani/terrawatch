@@ -12,4 +12,4 @@ def compute_magnitude_map(aligned: AlignedPair) -> np.ndarray:
     before = aligned.before.astype(np.float32)
     after = aligned.after.astype(np.float32)
     diff = after - before
-    return np.sqrt((diff ** 2).sum(axis=0))
+    return np.sqrt((diff**2).sum(axis=0))

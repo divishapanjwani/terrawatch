@@ -3,7 +3,8 @@ bands. Run once per analysis, saved with it, and shown as a quiet amber
 warning banner in the UI when a threshold is crossed. Also produces the
 per-pixel cloud masks the false-alarm filter uses (app/pipeline/false_alarm.py).
 """
-from dataclasses import dataclass, asdict
+
+from dataclasses import asdict, dataclass
 from typing import Optional
 
 import numpy as np

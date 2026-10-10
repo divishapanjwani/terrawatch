@@ -10,7 +10,15 @@ const STEP_LABELS: Record<string, string> = {
   done: "Done",
 };
 
-const FALLBACK_STEPS = ["validating", "quality_check", "detecting", "filtering", "vectorizing", "impact_analysis", "done"];
+const FALLBACK_STEPS = [
+  "validating",
+  "quality_check",
+  "detecting",
+  "filtering",
+  "vectorizing",
+  "impact_analysis",
+  "done",
+];
 
 export default function ProcessingCard({ step, steps }: { step: string; steps: string[] }) {
   const list = steps.length ? steps : FALLBACK_STEPS;
@@ -47,8 +55,8 @@ export default function ProcessingCard({ step, steps }: { step: string; steps: s
                   background: isDone
                     ? "var(--color-accent)"
                     : isCurrent
-                    ? "var(--color-accent-soft)"
-                    : "var(--color-card)",
+                      ? "var(--color-accent-soft)"
+                      : "var(--color-card)",
                   border: isCurrent ? "1.5px solid var(--color-accent)" : "1px solid var(--color-border)",
                 }}
               >
@@ -57,7 +65,12 @@ export default function ProcessingCard({ step, steps }: { step: string; steps: s
                 ) : isCurrent ? (
                   <span
                     className="ts-pulse"
-                    style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--color-accent)" }}
+                    style={{
+                      width: "6px",
+                      height: "6px",
+                      borderRadius: "50%",
+                      background: "var(--color-accent)",
+                    }}
                   />
                 ) : null}
               </span>

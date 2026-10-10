@@ -5,6 +5,7 @@ test datasets (LEVIR-CD, OSCD). Mirrors the real pipeline's stages
 known pixel size instead of going through AlignedPair/CRS machinery, which
 doesn't apply to these datasets.
 """
+
 from types import SimpleNamespace
 
 import numpy as np
@@ -56,7 +57,7 @@ def ablation_masks(
     edge_map = np.zeros(prob_map.shape, dtype=bool)  # no real nodata boundary on plain test images
 
     labels = cc_label(morphology, connectivity=1)
-    pixel_area_m2 = pixel_size_m ** 2
+    pixel_area_m2 = pixel_size_m**2
     band_count = before_bands.shape[0]
 
     false_alarm_filter = np.zeros_like(morphology)

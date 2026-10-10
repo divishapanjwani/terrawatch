@@ -1,0 +1,13 @@
+[tool.black]
+line-length = 110
+target-version = ["py311"]
+extend-exclude = "venv|data|models"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["venv", "data", "models"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]

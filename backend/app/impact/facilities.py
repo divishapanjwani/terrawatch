@@ -6,6 +6,7 @@ Clinics are grouped into "hospitals" for nearest-facility purposes --
 the data model only tracks nearest_hospital_m / nearest_school_m
 (see PROJECT_BRIEF.md section 6).
 """
+
 import json
 import time
 from pathlib import Path
@@ -127,11 +128,13 @@ def fetch_facilities(bounds_4326: tuple, cache_dir: Path) -> dict:
         if not geom:
             continue
         tags = el.get("tags", {})
-        roads.append({
-            "name": tags.get("name", "Unnamed road"),
-            "highway": tags.get("highway", ""),
-            "coords": [[pt["lon"], pt["lat"]] for pt in geom],
-        })
+        roads.append(
+            {
+                "name": tags.get("name", "Unnamed road"),
+                "highway": tags.get("highway", ""),
+                "coords": [[pt["lon"], pt["lat"]] for pt in geom],
+            }
+        )
 
     result = {"hospitals": hospitals, "schools": schools, "shelters": shelters, "roads": roads}
     cache_file.write_text(json.dumps(result))

@@ -6,6 +6,7 @@ need bands/features the input doesn't have (e.g. NDVI on RGB-only input)
 are skipped and reported as "unavailable" rather than silently treated as
 false.
 """
+
 from dataclasses import dataclass
 
 from app import config
@@ -41,7 +42,9 @@ def available_checks(band_count: int) -> AvailableChecks:
     )
 
 
-def classify(p: PolygonResult, band_count: int, cloud_method: str = "brightness_heuristic") -> tuple[str, str | None]:
+def classify(
+    p: PolygonResult, band_count: int, cloud_method: str = "brightness_heuristic"
+) -> tuple[str, str | None]:
     """Returns (status, reject_reason). status is "kept" or "rejected"."""
     checks = available_checks(band_count)
     extra = p.extra
@@ -52,7 +55,8 @@ def classify(p: PolygonResult, band_count: int, cloud_method: str = "brightness_
         return "rejected", "too_small"
 
     cloud_threshold = (
-        config.CLOUD_OVERLAP_FRAC_THRESHOLD_SCL if cloud_method == "scl"
+        config.CLOUD_OVERLAP_FRAC_THRESHOLD_SCL
+        if cloud_method == "scl"
         else config.CLOUD_OVERLAP_FRAC_THRESHOLD_HEURISTIC
     )
     if checks.cloud and extra.get("cloud_overlap", 0.0) >= cloud_threshold:

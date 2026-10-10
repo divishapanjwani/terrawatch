@@ -61,14 +61,19 @@ export default function TopBar({
       {analysisName && (
         <>
           <div style={{ width: "1px", height: "20px", background: "var(--color-border)" }} />
-          <span className="mono" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}>
+          <span
+            className="mono"
+            style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}
+          >
             {analysisName}
           </span>
         </>
       )}
 
       {analysis?.engine && (
-        <span className="ts-pill ts-pill-neutral">{ENGINE_NAME_LABEL[analysis.engine] ?? analysis.engine}</span>
+        <span className="ts-pill ts-pill-neutral">
+          {ENGINE_NAME_LABEL[analysis.engine] ?? analysis.engine}
+        </span>
       )}
 
       <div style={{ flex: 1 }} />
@@ -124,7 +129,12 @@ export default function TopBar({
         </div>
       )}
 
-      <button className="ts-btn ts-btn-ghost ts-btn-sm" onClick={onOpenSettings} title="Settings" aria-label="Settings">
+      <button
+        className="ts-btn ts-btn-ghost ts-btn-sm"
+        onClick={onOpenSettings}
+        title="Settings"
+        aria-label="Settings"
+      >
         <SettingsIcon size={16} />
       </button>
     </header>

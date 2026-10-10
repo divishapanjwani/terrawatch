@@ -4,7 +4,7 @@ from pyproj import CRS, Transformer
 from rasterio.transform import from_origin
 
 from app.geo.align import AlignedPair
-from app.geo.vectorize import vectorize, native_pixel_area_m2, resolve_area_crs
+from app.geo.vectorize import native_pixel_area_m2, resolve_area_crs, vectorize
 
 
 def _make_aligned(width=500, height=500, pixel_size=1.0, crs_epsg=32643):

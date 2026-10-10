@@ -5,19 +5,18 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-
-from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from sqlmodel import select
 
 from app.config import PROGRESS_STEPS
-from app.db import get_session, UPLOADS_DIR, ANALYSES_DIR, OSM_CACHE_DIR
-from app.models import Analysis
-from app.geo.preview import read_metadata
-from app.impact.facilities import fetch_facilities, OSMFetchError
-from app.pipeline.run import run_pipeline
-from app.pipeline.priority import recompute_hazard_zone_gdf
+from app.db import ANALYSES_DIR, OSM_CACHE_DIR, UPLOADS_DIR, get_session
 from app.engines.select import VALID_FORCED_CHOICES
+from app.geo.preview import read_metadata
+from app.impact.facilities import OSMFetchError, fetch_facilities
+from app.models import Analysis
+from app.pipeline.priority import recompute_hazard_zone_gdf
+from app.pipeline.run import run_pipeline
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
 
@@ -38,8 +37,13 @@ def _set_progress(analysis_id: str, step: str) -> None:
 
 
 def _process_analysis(
-    analysis_id: str, before_path: str, after_path: str, output_dir: Path, engine_choice: str,
-    mode: str = "disaster", hazard_zone_geojson: Optional[str] = None,
+    analysis_id: str,
+    before_path: str,
+    after_path: str,
+    output_dir: Path,
+    engine_choice: str,
+    mode: str = "disaster",
+    hazard_zone_geojson: Optional[str] = None,
 ) -> None:
     before_png = output_dir / "before.png"
     after_png = output_dir / "after.png"
@@ -109,9 +113,7 @@ async def create_analysis(
     hazard_zone: Optional[str] = Form(None),
 ):
     if engine not in VALID_FORCED_CHOICES:
-        raise HTTPException(
-            status_code=400, detail=f"engine must be one of {VALID_FORCED_CHOICES}"
-        )
+        raise HTTPException(status_code=400, detail=f"engine must be one of {VALID_FORCED_CHOICES}")
     if hazard_zone:
         try:
             json.loads(hazard_zone)
@@ -145,8 +147,14 @@ async def create_analysis(
         session.commit()
 
     background_tasks.add_task(
-        _process_analysis, analysis_id, str(before_path), str(after_path), output_dir, engine,
-        mode, hazard_zone,
+        _process_analysis,
+        analysis_id,
+        str(before_path),
+        str(after_path),
+        output_dir,
+        engine,
+        mode,
+        hazard_zone,
     )
 
     return {"analysis_id": analysis_id}
@@ -181,7 +189,9 @@ async def get_analysis(analysis_id: str):
             "polygon_count": analysis.polygon_count,
             "kept_count": analysis.kept_count,
             "rejected_count": analysis.rejected_count,
-            "reject_reason_counts": json.loads(analysis.reject_reason_counts) if analysis.reject_reason_counts else {},
+            "reject_reason_counts": (
+                json.loads(analysis.reject_reason_counts) if analysis.reject_reason_counts else {}
+            ),
             "summary_line": analysis.summary_line,
             "population_available": analysis.population_available,
             "total_population_buffer_est": analysis.total_population_buffer_est,
@@ -220,10 +230,18 @@ async def get_imagery(analysis_id: str, which: str):
         analysis = session.get(Analysis, analysis_id)
         if analysis is None:
             raise HTTPException(status_code=404, detail="Analysis not found")
-        png_path = {"before": analysis.before_png, "after": analysis.after_png, "population": analysis.population_png}[which]
+        png_path = {
+            "before": analysis.before_png,
+            "after": analysis.after_png,
+            "population": analysis.population_png,
+        }[which]
         if not png_path:
             status = 409 if which != "population" else 404
-            detail = "Imagery not ready yet" if which != "population" else "No population data available for this scene"
+            detail = (
+                "Imagery not ready yet"
+                if which != "population"
+                else "No population data available for this scene"
+            )
             raise HTTPException(status_code=status, detail=detail)
         return FileResponse(png_path, media_type="image/png")
 

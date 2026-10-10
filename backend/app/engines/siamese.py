@@ -5,6 +5,7 @@ one of the three with a scripted (non-interactive) download, so it's what's
 wired in. Falls back to the spectral baseline (app/engines/spectral.py) if
 the weights file is missing or fails to load.
 """
+
 import threading
 from pathlib import Path
 

@@ -9,13 +9,14 @@ Sentinel-2-style reflectance (uint16, DN = reflectance * 10000) — NOT
 0-255 display bytes. If a 5th (SWIR) band isn't available, the SWIR band
 and the NDBI channel are zero-filled and that's reflected in confidence.
 """
+
 from pathlib import Path
 
 import numpy as np
 import torch
 
-from app.geo.align import AlignedPair
 from app.engines.unet_model import SmallUNet
+from app.geo.align import AlignedPair
 
 ENGINE_NAME = "unet_oscd"
 

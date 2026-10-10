@@ -6,7 +6,11 @@ import type { PriorityWeights } from "../api/client";
 const WEIGHT_LABELS: { key: keyof PriorityWeights; label: string; hint: string }[] = [
   { key: "w1_severity", label: "w1 — Severity", hint: "change strength (area + magnitude)" },
   { key: "w2_population", label: "w2 — Population", hint: "estimated people nearby" },
-  { key: "w3_facility_proximity", label: "w3 — Facility proximity", hint: "closeness to a hospital or school" },
+  {
+    key: "w3_facility_proximity",
+    label: "w3 — Facility proximity",
+    hint: "closeness to a hospital or school",
+  },
   { key: "w4_confidence", label: "w4 — Confidence", hint: "model confidence in the detection" },
   { key: "w5_route_impact", label: "w5 — Route impact", hint: "reserved for Phase 7 (routes), currently 0" },
 ];
@@ -25,7 +29,9 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    getPriorityWeights().then(setWeights).catch(() => setStatus("Failed to load settings."));
+    getPriorityWeights()
+      .then(setWeights)
+      .catch(() => setStatus("Failed to load settings."));
   }, []);
 
   async function handleSave() {
@@ -47,11 +53,27 @@ export default function SettingsPage() {
 
   return (
     <div className="ts-scroll" style={{ flex: 1, padding: "32px", maxWidth: "600px", overflowY: "auto" }}>
-      <h1 style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, margin: "0 0 6px", letterSpacing: "-0.01em" }}>Settings</h1>
-      <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", margin: "0 0 28px", lineHeight: 1.5 }}>
+      <h1
+        style={{
+          fontSize: "var(--font-size-xl)",
+          fontWeight: 700,
+          margin: "0 0 6px",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        Settings
+      </h1>
+      <p
+        style={{
+          fontSize: "var(--font-size-sm)",
+          color: "var(--color-text-secondary)",
+          margin: "0 0 28px",
+          lineHeight: 1.5,
+        }}
+      >
         Priority score weights: priority = w1·sev_score + w2·norm(population_est) + w3·facility_proximity +
-        w4·confidence + w5·route_impact. Changes apply to the next analysis you run — they don't recompute whatever
-        is currently on screen.
+        w4·confidence + w5·route_impact. Changes apply to the next analysis you run — they don't recompute
+        whatever is currently on screen.
       </p>
 
       {!weights ? (
@@ -61,13 +83,35 @@ export default function SettingsPage() {
           <div className="ts-card" style={{ padding: "20px 22px" }}>
             {WEIGHT_LABELS.map(({ key, label, hint }, i) => (
               <div key={key} style={{ marginBottom: i < WEIGHT_LABELS.length - 1 ? "22px" : 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "2px" }}>
-                  <label style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text)", fontWeight: 500 }}>{label}</label>
-                  <span className="mono" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-accent)", fontWeight: 600 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    marginBottom: "2px",
+                  }}
+                >
+                  <label
+                    style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text)", fontWeight: 500 }}
+                  >
+                    {label}
+                  </label>
+                  <span
+                    className="mono"
+                    style={{ fontSize: "var(--font-size-sm)", color: "var(--color-accent)", fontWeight: 600 }}
+                  >
                     {weights[key].toFixed(2)}
                   </span>
                 </div>
-                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", margin: "0 0 10px" }}>{hint}</p>
+                <p
+                  style={{
+                    fontSize: "var(--font-size-xs)",
+                    color: "var(--color-text-faint)",
+                    margin: "0 0 10px",
+                  }}
+                >
+                  {hint}
+                </p>
                 <input
                   type="range"
                   min={0}
@@ -91,7 +135,15 @@ export default function SettingsPage() {
             </button>
           </div>
           {status && (
-            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", marginTop: "12px" }}>{status}</p>
+            <p
+              style={{
+                fontSize: "var(--font-size-xs)",
+                color: "var(--color-text-secondary)",
+                marginTop: "12px",
+              }}
+            >
+              {status}
+            </p>
           )}
         </>
       )}

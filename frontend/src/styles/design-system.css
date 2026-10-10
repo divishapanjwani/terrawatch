@@ -59,8 +59,11 @@
   background: var(--color-card);
   color: var(--color-text);
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast),
-    color var(--transition-fast), transform var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 .ts-btn:hover:not(:disabled) {
   background: var(--color-card-hover);
@@ -123,7 +126,9 @@
   padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 .ts-segment button.active {
   background: var(--color-accent);
@@ -147,7 +152,9 @@
   border: 1px solid var(--color-border);
   background: var(--color-panel);
   color: var(--color-text);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 .ts-input:focus,
 .ts-select:focus {
@@ -186,7 +193,9 @@
   height: 14px;
   border-radius: 50%;
   background: var(--color-text-secondary);
-  transition: transform var(--transition-fast), background var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast);
 }
 .ts-switch input:checked + .track {
   background: var(--color-accent-soft);
@@ -222,11 +231,31 @@
   flex-shrink: 0;
 }
 
-.ts-pill-high { background: rgba(229, 72, 77, 0.14); color: var(--color-severity-high); border-color: rgba(229, 72, 77, 0.3); }
-.ts-pill-medium { background: rgba(245, 165, 36, 0.14); color: var(--color-severity-medium); border-color: rgba(245, 165, 36, 0.3); }
-.ts-pill-low { background: rgba(242, 212, 92, 0.14); color: var(--color-severity-low); border-color: rgba(242, 212, 92, 0.3); }
-.ts-pill-rejected { background: rgba(107, 125, 130, 0.14); color: var(--color-rejected); border-color: rgba(107, 125, 130, 0.3); }
-.ts-pill-neutral { background: var(--color-card); color: var(--color-text-secondary); border-color: var(--color-border); }
+.ts-pill-high {
+  background: rgba(229, 72, 77, 0.14);
+  color: var(--color-severity-high);
+  border-color: rgba(229, 72, 77, 0.3);
+}
+.ts-pill-medium {
+  background: rgba(245, 165, 36, 0.14);
+  color: var(--color-severity-medium);
+  border-color: rgba(245, 165, 36, 0.3);
+}
+.ts-pill-low {
+  background: rgba(242, 212, 92, 0.14);
+  color: var(--color-severity-low);
+  border-color: rgba(242, 212, 92, 0.3);
+}
+.ts-pill-rejected {
+  background: rgba(107, 125, 130, 0.14);
+  color: var(--color-rejected);
+  border-color: rgba(107, 125, 130, 0.3);
+}
+.ts-pill-neutral {
+  background: var(--color-card);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
 
 /* ---------- Status dots (quality rows) ---------- */
 
@@ -237,26 +266,55 @@
   display: inline-block;
   flex-shrink: 0;
 }
-.ts-status-dot.ok { background: var(--color-accent); box-shadow: 0 0 6px rgba(47, 211, 193, 0.5); }
-.ts-status-dot.warn { background: var(--color-warning); box-shadow: 0 0 6px rgba(245, 165, 36, 0.5); }
+.ts-status-dot.ok {
+  background: var(--color-accent);
+  box-shadow: 0 0 6px rgba(47, 211, 193, 0.5);
+}
+.ts-status-dot.warn {
+  background: var(--color-warning);
+  box-shadow: 0 0 6px rgba(245, 165, 36, 0.5);
+}
 
 /* ---------- Motion ---------- */
 
 @keyframes ts-fade-up {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes ts-slide-in-right {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 @keyframes ts-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(0.85); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
 }
 @keyframes ts-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ts-fade-up {

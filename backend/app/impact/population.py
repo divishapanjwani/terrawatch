@@ -7,6 +7,7 @@ WorldPop pixel values are already population COUNTS per pixel (not a
 density), so the estimate is a straight sum of in-range pixels -- no
 area-weighting needed.
 """
+
 from pathlib import Path
 from typing import Optional
 
@@ -30,7 +31,9 @@ def population_raster_path() -> Optional[Path]:
 def _read_window(raster_path: Path, bounds_4326: tuple, margin_deg: float = 0.05):
     west, south, east, north = bounds_4326
     with rasterio.open(raster_path) as ds:
-        window = from_bounds(west - margin_deg, south - margin_deg, east + margin_deg, north + margin_deg, ds.transform)
+        window = from_bounds(
+            west - margin_deg, south - margin_deg, east + margin_deg, north + margin_deg, ds.transform
+        )
         window = window.round_offsets().round_lengths()
         # Clamp to the raster's own extent -- a demo bbox near the edge of
         # the country file shouldn't ask for an out-of-bounds window.

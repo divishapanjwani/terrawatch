@@ -96,8 +96,8 @@ export default function Hero({
             lineHeight: 1.5,
           }}
         >
-          Upload a before/after image pair and TerraWatch finds real changes, explains the false
-          alarms, and ranks what to look at first.
+          Upload a before/after image pair and TerraWatch finds real changes, explains the false alarms, and
+          ranks what to look at first.
         </p>
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginBottom: "20px" }}>
@@ -125,7 +125,12 @@ export default function Hero({
             <span
               key={chip.label}
               className="ts-pill ts-pill-neutral"
-              style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500, fontSize: "var(--font-size-xs)" }}
+              style={{
+                textTransform: "none",
+                letterSpacing: 0,
+                fontWeight: 500,
+                fontSize: "var(--font-size-xs)",
+              }}
             >
               {chip.icon}
               {chip.label}

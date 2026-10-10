@@ -8,13 +8,14 @@ pixel-for-pixel co-located. Without this, independently-reprojected before
 and after rasters can end up with slightly different bounds/pixel grids
 (rounding in the reprojection target) and edges visibly disagree when swiping.
 """
+
 from dataclasses import dataclass
 
 import numpy as np
 import rasterio
-from rasterio.warp import reproject, Resampling
-from rasterio.crs import CRS
 from affine import Affine
+from rasterio.crs import CRS
+from rasterio.warp import Resampling, reproject
 
 
 @dataclass

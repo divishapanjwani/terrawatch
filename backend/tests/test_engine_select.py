@@ -4,8 +4,8 @@ import numpy as np
 from pyproj import CRS
 from rasterio.transform import from_origin
 
-from app.geo.align import AlignedPair
 from app.engines import select
+from app.geo.align import AlignedPair
 
 
 def _make_aligned(pixel_size_m, band_count=4, crs_epsg=32643):
@@ -47,8 +47,10 @@ def test_auto_never_falls_back_to_tinycd_on_coarse_input_when_engine2_unavailabl
     10m Sentinel-2 input to TinyCD when Engine 2 was unavailable, which the
     brief explicitly forbids ('Never run TinyCD on Sentinel-2')."""
     aligned = _make_aligned(pixel_size_m=10.0, band_count=4)
-    with patch.object(select.siamese, "is_available", return_value=True), \
-         patch.object(select.engine2, "is_available", return_value=False):
+    with (
+        patch.object(select.siamese, "is_available", return_value=True),
+        patch.object(select.engine2, "is_available", return_value=False),
+    ):
         resolution = select.resolve_engine(aligned, forced="auto")
     assert resolution.key == "spectral"
     assert resolution.rule_choice == "engine2"
@@ -65,15 +67,19 @@ def test_auto_uses_engine2_when_available_on_coarse_input():
 
 def test_auto_tinycd_unavailable_falls_through_to_engine2_then_spectral():
     aligned = _make_aligned(pixel_size_m=1.0, band_count=3)
-    with patch.object(select.siamese, "is_available", return_value=False), \
-         patch.object(select.engine2, "is_available", return_value=True):
+    with (
+        patch.object(select.siamese, "is_available", return_value=False),
+        patch.object(select.engine2, "is_available", return_value=True),
+    ):
         resolution = select.resolve_engine(aligned, forced="auto")
     assert resolution.key == "engine2"
     assert resolution.rule_choice == "tinycd"
     assert resolution.fell_back is True
 
-    with patch.object(select.siamese, "is_available", return_value=False), \
-         patch.object(select.engine2, "is_available", return_value=False):
+    with (
+        patch.object(select.siamese, "is_available", return_value=False),
+        patch.object(select.engine2, "is_available", return_value=False),
+    ):
         resolution = select.resolve_engine(aligned, forced="auto")
     assert resolution.key == "spectral"
 

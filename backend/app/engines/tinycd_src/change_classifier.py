@@ -1,8 +1,10 @@
 from typing import List
+
 import torchvision
-from app.engines.tinycd_src.layers import MixingMaskAttentionBlock, PixelwiseLinear, UpMask, MixingBlock
 from torch import Tensor
 from torch.nn import Module, ModuleList, Sigmoid
+
+from app.engines.tinycd_src.layers import MixingBlock, MixingMaskAttentionBlock, PixelwiseLinear, UpMask
 
 
 class ChangeClassifier(Module):
@@ -16,9 +18,7 @@ class ChangeClassifier(Module):
         super().__init__()
 
         # Load the pretrained backbone according to parameters:
-        self._backbone = _get_backbone(
-            bkbn_name, pretrained, output_layer_bkbn, freeze_backbone
-        )
+        self._backbone = _get_backbone(bkbn_name, pretrained, output_layer_bkbn, freeze_backbone)
 
         # Initialize mixing blocks:
         self._first_mix = MixingMaskAttentionBlock(6, 3, [3, 10, 5], [10, 5, 1])
@@ -62,13 +62,9 @@ class ChangeClassifier(Module):
         return upping
 
 
-def _get_backbone(
-    bkbn_name, pretrained, output_layer_bkbn, freeze_backbone
-) -> ModuleList:
+def _get_backbone(bkbn_name, pretrained, output_layer_bkbn, freeze_backbone) -> ModuleList:
     # The whole model:
-    entire_model = getattr(torchvision.models, bkbn_name)(
-        pretrained=pretrained
-    ).features
+    entire_model = getattr(torchvision.models, bkbn_name)(pretrained=pretrained).features
 
     # Slicing it:
     derived_model = ModuleList([])

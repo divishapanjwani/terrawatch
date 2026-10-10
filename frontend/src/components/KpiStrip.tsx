@@ -43,7 +43,9 @@ function Card({
         gap: "8px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--color-text-secondary)" }}>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--color-text-secondary)" }}
+      >
         {icon}
         <span className="ts-label">{label}</span>
       </div>
@@ -52,7 +54,9 @@ function Card({
           {display}
         </span>
         {suffix && (
-          <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>{suffix}</span>
+          <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
+            {suffix}
+          </span>
         )}
       </div>
       {children}
@@ -68,8 +72,12 @@ function MiniStackedBar({ segments }: { segments: { color: string; count: number
       <div style={{ display: "flex", height: "4px", borderRadius: "2px", overflow: "hidden", gap: "1px" }}>
         {segments.map((seg) =>
           seg.count > 0 ? (
-            <div key={seg.label} style={{ flex: seg.count, background: seg.color }} title={`${seg.label}: ${seg.count}`} />
-          ) : null
+            <div
+              key={seg.label}
+              style={{ flex: seg.count, background: seg.color }}
+              title={`${seg.label}: ${seg.count}`}
+            />
+          ) : null,
         )}
       </div>
       <div style={{ display: "flex", gap: "8px", marginTop: "5px", flexWrap: "wrap" }}>
@@ -83,7 +91,13 @@ function MiniStackedBar({ segments }: { segments: { color: string; count: number
   );
 }
 
-export default function KpiStrip({ analysis, geojson }: { analysis: AnalysisStatus; geojson: FeatureCollection }) {
+export default function KpiStrip({
+  analysis,
+  geojson,
+}: {
+  analysis: AnalysisStatus;
+  geojson: FeatureCollection;
+}) {
   const stats = useMemo(() => {
     let areaM2 = 0;
     const severityCounts: Record<string, number> = { High: 0, Medium: 0, Low: 0 };
@@ -116,8 +130,22 @@ export default function KpiStrip({ analysis, geojson }: { analysis: AnalysisStat
         <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
           {rejectEntries.slice(0, 3).map(([reason, count]) => (
             <div key={reason} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <div style={{ width: "40px", height: "3px", borderRadius: "2px", background: "var(--color-border)", overflow: "hidden" }}>
-                <div style={{ width: `${(count / maxReject) * 100}%`, height: "100%", background: "var(--color-rejected)" }} />
+              <div
+                style={{
+                  width: "40px",
+                  height: "3px",
+                  borderRadius: "2px",
+                  background: "var(--color-border)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${(count / maxReject) * 100}%`,
+                    height: "100%",
+                    background: "var(--color-rejected)",
+                  }}
+                />
               </div>
               <span style={{ fontSize: "10px", color: "var(--color-text-secondary)" }}>
                 {reason} <span className="mono">{count}</span>
@@ -132,7 +160,11 @@ export default function KpiStrip({ analysis, geojson }: { analysis: AnalysisStat
       <Card
         icon={<Users size={14} />}
         label="People in changed areas"
-        value={analysis.population_available && analysis.total_population_buffer_est != null ? analysis.total_population_buffer_est : 0}
+        value={
+          analysis.population_available && analysis.total_population_buffer_est != null
+            ? analysis.total_population_buffer_est
+            : 0
+        }
         prefix={analysis.population_available ? "~" : undefined}
         suffix={analysis.population_available ? "(estimate)" : "no data"}
         decimals={0}

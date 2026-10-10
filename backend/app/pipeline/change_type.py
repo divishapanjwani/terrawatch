@@ -4,12 +4,17 @@ label, not a confirmed classification. Checked in this priority order
 (first match wins): flooding, landslide_bare_soil, new_construction,
 structure_lost, vegetation_loss, other.
 """
+
 from app import config
 from app.geo.vectorize import PolygonResult
 
 CHANGE_TYPES = [
-    "new_construction", "structure_lost", "flooding",
-    "landslide_bare_soil", "vegetation_loss", "other",
+    "new_construction",
+    "structure_lost",
+    "flooding",
+    "landslide_bare_soil",
+    "vegetation_loss",
+    "other",
 ]
 
 
@@ -28,7 +33,8 @@ def classify_change_type(p: PolygonResult, band_count: int) -> tuple[str, str]:
         return "flooding", f"ΔNDWI {ndwi_d:+.2f} >= {config.FLOODING_NDWI_THRESHOLD} (water increased)"
 
     if (
-        ndvi_d is not None and ndbi_d is not None
+        ndvi_d is not None
+        and ndbi_d is not None
         and ndvi_d <= config.LANDSLIDE_NDVI_THRESHOLD
         and ndbi_d < config.LANDSLIDE_NDBI_CEILING
         and p.area_m2 >= config.LANDSLIDE_MIN_AREA_M2
@@ -41,7 +47,9 @@ def classify_change_type(p: PolygonResult, band_count: int) -> tuple[str, str]:
         )
 
     if (
-        ndvi_d is not None and ndbi_d is not None and texture_d is not None
+        ndvi_d is not None
+        and ndbi_d is not None
+        and texture_d is not None
         and ndvi_d <= config.LANDSLIDE_NDVI_LOOSE_THRESHOLD
         and ndbi_d < config.LANDSLIDE_NDBI_LOOSE_CEILING
         and texture_d >= config.LANDSLIDE_TEXTURE_FLOOR
@@ -57,16 +65,26 @@ def classify_change_type(p: PolygonResult, band_count: int) -> tuple[str, str]:
         )
 
     if (
-        ndbi_d is not None and ndbi_d >= config.NEW_CONSTRUCTION_NDBI_THRESHOLD
+        ndbi_d is not None
+        and ndbi_d >= config.NEW_CONSTRUCTION_NDBI_THRESHOLD
         and p.area_m2 < config.NEW_CONSTRUCTION_MAX_AREA_M2
     ):
-        return "new_construction", f"ΔNDBI {ndbi_d:+.2f} >= {config.NEW_CONSTRUCTION_NDBI_THRESHOLD} (built-up signature increased)"
+        return (
+            "new_construction",
+            f"ΔNDBI {ndbi_d:+.2f} >= {config.NEW_CONSTRUCTION_NDBI_THRESHOLD} (built-up signature increased)",
+        )
 
     if ndbi_d is not None and ndbi_d <= config.STRUCTURE_LOST_NDBI_THRESHOLD:
-        return "structure_lost", f"ΔNDBI {ndbi_d:+.2f} <= {config.STRUCTURE_LOST_NDBI_THRESHOLD} (built-up signature decreased)"
+        return (
+            "structure_lost",
+            f"ΔNDBI {ndbi_d:+.2f} <= {config.STRUCTURE_LOST_NDBI_THRESHOLD} (built-up signature decreased)",
+        )
 
     if ndvi_d is not None and ndvi_d <= config.VEGETATION_LOSS_NDVI_THRESHOLD:
-        return "vegetation_loss", f"ΔNDVI {ndvi_d:+.2f} <= {config.VEGETATION_LOSS_NDVI_THRESHOLD} (vegetation loss)"
+        return (
+            "vegetation_loss",
+            f"ΔNDVI {ndvi_d:+.2f} <= {config.VEGETATION_LOSS_NDVI_THRESHOLD} (vegetation loss)",
+        )
 
     return "other", "no change-type rule matched"
 

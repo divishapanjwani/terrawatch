@@ -105,14 +105,21 @@ export default function PolygonPanel({
   }
 
   const whyText = isRejected
-    ? REJECT_REASON_LABELS[rejectReason] ?? `${rejectReason || "No reason recorded"}.`
+    ? (REJECT_REASON_LABELS[rejectReason] ?? `${rejectReason || "No reason recorded"}.`)
     : p.change_type_rule
-    ? String(p.change_type_rule)
-    : null;
+      ? String(p.change_type_rule)
+      : null;
 
   return (
     <div style={{ padding: "14px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: "12px",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {isRejected ? (
             <span className="ts-pill ts-pill-rejected">Rejected</span>
@@ -123,13 +130,32 @@ export default function PolygonPanel({
             </span>
           )}
           {!isRejected && (
-            <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "var(--font-size-sm)", color: "var(--color-text)" }}>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "var(--font-size-sm)",
+                color: "var(--color-text)",
+              }}
+            >
               <ChangeIcon size={14} />
               {CHANGE_TYPE_LABEL[changeType] ?? (changeType || "—")}
             </span>
           )}
         </div>
-        <button onClick={onClose} className="ts-btn-ghost" style={{ border: "none", background: "none", cursor: "pointer", padding: "2px", color: "var(--color-text-secondary)" }} aria-label="Close">
+        <button
+          onClick={onClose}
+          className="ts-btn-ghost"
+          style={{
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            padding: "2px",
+            color: "var(--color-text-secondary)",
+          }}
+          aria-label="Close"
+        >
           <X size={16} />
         </button>
       </div>
@@ -176,7 +202,16 @@ export default function PolygonPanel({
           <div className="ts-label" style={{ marginBottom: "5px" }}>
             Why {isRejected ? "rejected" : "this type"}
           </div>
-          <p style={{ margin: 0, fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>{whyText}</p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "var(--font-size-xs)",
+              color: "var(--color-text-secondary)",
+              lineHeight: 1.5,
+            }}
+          >
+            {whyText}
+          </p>
         </div>
       )}
 
@@ -197,31 +232,45 @@ export default function PolygonPanel({
       {!isRejected && (
         <Row
           label="Nearest hospital"
-          value={p.nearest_hospital_m != null ? `${Number(p.nearest_hospital_m).toLocaleString()} m` : "none found"}
+          value={
+            p.nearest_hospital_m != null ? `${Number(p.nearest_hospital_m).toLocaleString()} m` : "none found"
+          }
         />
       )}
       {!isRejected && (
         <Row
           label="Nearest school"
-          value={p.nearest_school_m != null ? `${Number(p.nearest_school_m).toLocaleString()} m` : "none found"}
+          value={
+            p.nearest_school_m != null ? `${Number(p.nearest_school_m).toLocaleString()} m` : "none found"
+          }
         />
       )}
       {!isRejected && (
         <Row
           label="Nearest main road"
-          value={p.nearest_main_road_m != null ? `${Number(p.nearest_main_road_m).toLocaleString()} m` : "none found"}
+          value={
+            p.nearest_main_road_m != null
+              ? `${Number(p.nearest_main_road_m).toLocaleString()} m`
+              : "none found"
+          }
         />
       )}
       {!isRejected && (
         <Row
           label="Population (inside)"
-          value={p.population_est != null ? `~${Math.round(Number(p.population_est)).toLocaleString()}` : "no data"}
+          value={
+            p.population_est != null ? `~${Math.round(Number(p.population_est)).toLocaleString()}` : "no data"
+          }
         />
       )}
       {!isRejected && (
         <Row
           label="Population (+buffer)"
-          value={p.population_buffer_est != null ? `~${Math.round(Number(p.population_buffer_est)).toLocaleString()}` : "no data"}
+          value={
+            p.population_buffer_est != null
+              ? `~${Math.round(Number(p.population_buffer_est)).toLocaleString()}`
+              : "no data"
+          }
         />
       )}
 
@@ -233,9 +282,28 @@ export default function PolygonPanel({
           {nearbyFacilities.map((f, i) => {
             const Icon = FACILITY_ICON[f.type] ?? Hospital;
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "5px 0", fontSize: "var(--font-size-xs)" }}>
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "5px 0",
+                  fontSize: "var(--font-size-xs)",
+                }}
+              >
                 <Icon size={13} />
-                <span style={{ color: "var(--color-text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                <span
+                  style={{
+                    color: "var(--color-text)",
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {f.name}
+                </span>
                 <span className="mono" style={{ color: "var(--color-text-secondary)", flexShrink: 0 }}>
                   {f.distance_m.toFixed(0)} m
                 </span>
@@ -246,7 +314,14 @@ export default function PolygonPanel({
       )}
 
       {!isRejected && p.priority_reason ? (
-        <p style={{ marginTop: "14px", fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+        <p
+          style={{
+            marginTop: "14px",
+            fontSize: "var(--font-size-xs)",
+            color: "var(--color-text-secondary)",
+            lineHeight: 1.5,
+          }}
+        >
           <strong style={{ color: "var(--color-text)" }}>Priority reason:</strong> {String(p.priority_reason)}
         </p>
       ) : null}
@@ -262,7 +337,14 @@ export default function PolygonPanel({
         <ExternalLink size={13} />
       </a>
 
-      <p style={{ marginTop: "16px", fontSize: "var(--font-size-xs)", color: "var(--color-text-faint)", lineHeight: 1.5 }}>
+      <p
+        style={{
+          marginTop: "16px",
+          fontSize: "var(--font-size-xs)",
+          color: "var(--color-text-faint)",
+          lineHeight: 1.5,
+        }}
+      >
         {isRejected
           ? "Rejected changes are excluded from severity scoring and the priority queue, but kept here for transparency."
           : "Severity measures change strength, not confirmed damage. sev_score = max(norm(log area_m²), norm(log change_magnitude)) — log-scaled so one huge outlier doesn't flatten the rest, and a change counts as severe if it's very large OR very intense; High ≥ 0.66, Medium ≥ 0.33, else Low."}

@@ -2,12 +2,13 @@
 urban growth area) from Microsoft Planetary Computer. See
 scripts/sentinel2_fetch.py for the shared fetch/clip logic.
 """
+
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.sentinel2_fetch import open_catalog, find_scene, save_clip  # noqa: E402
+from scripts.sentinel2_fetch import find_scene, open_catalog, save_clip  # noqa: E402
 
 # Small bbox near Pune, Maharashtra (urban growth area), ~3km x 3km.
 BBOX = (73.74, 18.55, 73.78, 18.58)
