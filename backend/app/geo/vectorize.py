@@ -58,6 +58,10 @@ class PolygonResult:
     priority_score: Optional[float] = None
     priority_rank: Optional[int] = None
     priority_reason: Optional[str] = None
+    # Blocked-route checker (app/impact/routes.py), KEPT polygons intersecting
+    # an OSM road only. None for everything else (not applicable, not "none").
+    route_impact: Optional[str] = None  # none | detour | no_alternative | unknown
+    detour_m: Optional[float] = None
 
 
 def native_pixel_area_m2(aligned: AlignedPair) -> float:

@@ -160,6 +160,30 @@ export default function PolygonPanel({
         </button>
       </div>
 
+      {!isRejected && (p.route_impact === "detour" || p.route_impact === "no_alternative") && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            margin: "0 0 12px",
+            padding: "9px 11px",
+            background:
+              p.route_impact === "no_alternative" ? "var(--color-danger-soft)" : "var(--color-warning-soft)",
+            border: `1px solid ${p.route_impact === "no_alternative" ? "rgba(229,72,77,0.35)" : "rgba(245,165,36,0.35)"}`,
+            borderRadius: "var(--radius-sm)",
+            fontSize: "var(--font-size-xs)",
+            color: p.route_impact === "no_alternative" ? "var(--color-severity-high)" : "var(--color-warning)",
+            fontWeight: 600,
+          }}
+        >
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+          {p.route_impact === "no_alternative"
+            ? "Nearest-hospital route may be cut off — possible blockage — verify on ground"
+            : `Detour of ~${Math.round(Number(p.detour_m ?? 0)).toLocaleString()} m to reach the nearest hospital — possible blockage — verify on ground`}
+        </div>
+      )}
+
       {!isRejected && Boolean(p.in_hazard_zone) && (
         <div
           style={{
@@ -252,6 +276,18 @@ export default function PolygonPanel({
             p.nearest_main_road_m != null
               ? `${Number(p.nearest_main_road_m).toLocaleString()} m`
               : "none found"
+          }
+        />
+      )}
+      {!isRejected && p.route_impact != null && (
+        <Row
+          label="Route impact"
+          value={
+            p.route_impact === "no_alternative"
+              ? "no alternative"
+              : p.route_impact === "detour"
+                ? `detour (~${Math.round(Number(p.detour_m ?? 0)).toLocaleString()} m)`
+                : String(p.route_impact)
           }
         />
       )}

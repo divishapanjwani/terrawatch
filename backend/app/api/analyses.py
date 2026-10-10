@@ -371,6 +371,45 @@ async def get_polygons(analysis_id: str):
     return JSONResponse(json.loads(Path(geojson_path).read_text()))
 
 
+@router.get("/{analysis_id}/polygons/{polygon_id}/route")
+async def get_polygon_route(analysis_id: str, polygon_id: str):
+    """On-demand (not precomputed for every polygon): the original and
+    detour route geometries to the nearest hospital, for the map to draw
+    when this polygon is selected. See app/impact/routes.py."""
+    from shapely.geometry import shape as shapely_shape
+
+    from app.impact.routes import get_route_for_polygon
+
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        if analysis is None:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        geojson_path = analysis.geojson_path
+        bounds_str = analysis.bounds
+    if not geojson_path or not Path(geojson_path).exists() or not bounds_str:
+        raise HTTPException(status_code=409, detail="Analysis not ready yet")
+
+    fc = json.loads(Path(geojson_path).read_text())
+    feature = next((f for f in fc["features"] if str(f["properties"].get("id")) == polygon_id), None)
+    if feature is None:
+        raise HTTPException(status_code=404, detail="Polygon not found")
+
+    west, south, east, north = (float(x) for x in bounds_str.split(","))
+    polygon_geom_4326 = shapely_shape(feature["geometry"])
+    centroid_lat = feature["properties"]["centroid_lat"]
+    centroid_lon = feature["properties"]["centroid_lon"]
+
+    try:
+        facilities = fetch_facilities((west, south, east, north), OSM_CACHE_DIR)
+    except OSMFetchError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    result = get_route_for_polygon(
+        polygon_geom_4326, centroid_lat, centroid_lon, facilities, (west, south, east, north)
+    )
+    return result
+
+
 @router.post("/{analysis_id}/hazard_zone")
 async def set_hazard_zone(analysis_id: str, body: dict):
     """Apply a user-drawn/uploaded hazard zone AFTER the analysis is ready

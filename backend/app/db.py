@@ -6,9 +6,10 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"
 ANALYSES_DIR = DATA_DIR / "analyses"
 OSM_CACHE_DIR = DATA_DIR / "osm_cache"
+ROUTE_GRAPH_CACHE_DIR = DATA_DIR / "route_graphs"
 DB_PATH = DATA_DIR / "terrawatch.db"
 
-for d in (DATA_DIR, UPLOADS_DIR, ANALYSES_DIR, OSM_CACHE_DIR):
+for d in (DATA_DIR, UPLOADS_DIR, ANALYSES_DIR, OSM_CACHE_DIR, ROUTE_GRAPH_CACHE_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})

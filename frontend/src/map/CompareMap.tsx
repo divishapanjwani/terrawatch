@@ -183,6 +183,12 @@ function computeScaleBar(zoom: number, lat: number, maxWidthPx = 100): { widthPx
   return { widthPx, label };
 }
 
+export interface RouteDisplay {
+  routeImpact: string;
+  originalPath: [number, number][] | null;
+  detourPath: [number, number][] | null;
+}
+
 interface Props {
   beforeUrl: string;
   afterUrl: string;
@@ -204,6 +210,70 @@ interface Props {
   drawMode?: boolean;
   onDrawComplete?: (polygon: GeoJSON.Polygon | null) => void;
   hazardZone?: GeoJSON.Polygon | null;
+  route?: RouteDisplay | null;
+}
+
+const ROUTE_ORIGINAL_COLOR: Record<string, string> = {
+  none: "#2FD3C1",
+  detour: "#F5A524",
+  no_alternative: "#E5484D",
+  unknown: "#8FA3A8",
+};
+
+function addRouteLayers(map: MLMap) {
+  if (map.getSource("route-original")) return;
+  map.addSource("route-original", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addSource("route-detour", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({
+    id: "route-original-line",
+    type: "line",
+    source: "route-original",
+    paint: {
+      "line-color": ["get", "color"],
+      "line-width": 3.5,
+      "line-dasharray": ["case", ["==", ["get", "cut"], true], ["literal", [2, 1.5]], ["literal", [1, 0]]],
+    },
+  });
+  map.addLayer({
+    id: "route-detour-line",
+    type: "line",
+    source: "route-detour",
+    paint: { "line-color": "#F5A524", "line-width": 3.5, "line-dasharray": [1, 1.5] },
+  });
+}
+
+function setRouteData(map: MLMap, route: RouteDisplay | null) {
+  const origSource = map.getSource("route-original") as GeoJSONSource | undefined;
+  const detourSource = map.getSource("route-detour") as GeoJSONSource | undefined;
+  if (!origSource || !detourSource) return;
+  if (!route || !route.originalPath) {
+    origSource.setData({ type: "FeatureCollection", features: [] });
+    detourSource.setData({ type: "FeatureCollection", features: [] });
+    return;
+  }
+  const color = ROUTE_ORIGINAL_COLOR[route.routeImpact] ?? ROUTE_ORIGINAL_COLOR.unknown;
+  origSource.setData({
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { color, cut: route.routeImpact === "no_alternative" },
+        geometry: { type: "LineString", coordinates: route.originalPath },
+      },
+    ],
+  });
+  detourSource.setData({
+    type: "FeatureCollection",
+    features: route.detourPath
+      ? [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: route.detourPath },
+          },
+        ]
+      : [],
+  });
 }
 
 function addHazardZoneLayers(map: MLMap) {
@@ -378,6 +448,7 @@ export default function CompareMap({
   drawMode = false,
   onDrawComplete,
   hazardZone,
+  route,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const beforeDivRef = useRef<HTMLDivElement>(null);
@@ -397,6 +468,8 @@ export default function CompareMap({
   const populationUrlRef = useRef(populationUrl);
   const showPopulationRef = useRef(showPopulation);
   const drawModeRef = useRef(drawMode);
+  const routeRef = useRef(route);
+  routeRef.current = route;
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [cursorLngLat, setCursorLngLat] = useState<{ lng: number; lat: number } | null>(null);
   const [viewState, setViewState] = useState({ zoom: 12, lat: 0 });
@@ -473,6 +546,8 @@ export default function CompareMap({
           setLayerVisibility(map, "population-layer", showPopulationRef.current);
         }
         addHazardZoneLayers(map);
+        addRouteLayers(map);
+        setRouteData(map, routeRef.current ?? null);
       };
       if (map.isStyleLoaded()) onLoad();
       else map.on("load", onLoad);
@@ -569,6 +644,13 @@ export default function CompareMap({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facilities]);
+
+  useEffect(() => {
+    if (!mapsRef.current) return;
+    for (const map of [mapsRef.current.before, mapsRef.current.after]) {
+      if (mapHasImage(map)) setRouteData(map, route ?? null);
+    }
+  }, [route]);
 
   useEffect(() => {
     if (!mapsRef.current) return;

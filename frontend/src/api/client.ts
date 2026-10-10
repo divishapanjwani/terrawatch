@@ -239,6 +239,24 @@ export async function applyHazardZone(
   return res.json();
 }
 
+export interface PolygonRoute {
+  status: "ok" | "unknown";
+  route_impact: "none" | "detour" | "no_alternative" | "unknown";
+  detour_m: number | null;
+  hospital_name?: string;
+  original_path: [number, number][] | null;
+  detour_path: [number, number][] | null;
+  reason?: string;
+}
+
+export async function getPolygonRoute(id: string, polygonId: string): Promise<PolygonRoute> {
+  const res = await fetch(`${API_BASE}/api/analyses/${id}/polygons/${polygonId}/route`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch route: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
 export async function getPolygons(id: string): Promise<FeatureCollection> {
   const res = await fetch(polygonsUrl(id));
   if (!res.ok) {
