@@ -30,6 +30,18 @@ PROGRESS_STEPS = [
     "done",
 ]
 
+# "fetching" only appears in progress_steps for analyses started via
+# POST /api/analyses/fetch (place/bbox auto-fetch) -- it runs before
+# "validating" since there's nothing to validate until the scenes land.
+FETCH_PROGRESS_STEPS = ["fetching"] + PROGRESS_STEPS
+
+# ---------------------------------------------------------------------------
+# Auto-fetch (app/geo/fetch.py) -- place name or drawn bbox -> Sentinel-2 L2A
+# ---------------------------------------------------------------------------
+FETCH_DEFAULT_BBOX_HALF_SIZE_DEG = 0.03  # ~6-7 km square, matches the Wayanad demo's scale
+FETCH_DEFAULT_MAX_CLOUD = 20.0
+NOMINATIM_MIN_INTERVAL_S = 1.0  # Nominatim usage policy: max 1 request/second
+
 # ---------------------------------------------------------------------------
 # Quality check (app/geo/quality.py)
 # ---------------------------------------------------------------------------

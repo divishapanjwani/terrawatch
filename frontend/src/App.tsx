@@ -10,6 +10,7 @@ import FileDropSlot from "./panels/FileDropSlot";
 import PolygonPanel from "./panels/PolygonPanel";
 import PriorityPanel from "./panels/PriorityPanel";
 import AccuracyPage from "./pages/AccuracyPage";
+import CaseStudiesPage from "./pages/CaseStudiesPage";
 import SettingsPage from "./pages/SettingsPage";
 import TopBar from "./components/TopBar";
 import LeftRail from "./components/LeftRail";
@@ -22,9 +23,11 @@ import KpiStrip from "./components/KpiStrip";
 import {
   applyHazardZone,
   createAnalysis,
+  fetchAnalysis,
   getFacilities,
   getPolygons,
   imageryUrl,
+  loadCaseStudy,
   pollUntilReady,
   populationOverlayUrl,
 } from "./api/client";
@@ -66,6 +69,12 @@ export default function App() {
   const [hazardZoneStatus, setHazardZoneStatus] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
+  const [fetchPlace, setFetchPlace] = useState("");
+  const [fetchBeforeRange, setFetchBeforeRange] = useState("2024-01-01/2024-04-30");
+  const [fetchAfterRange, setFetchAfterRange] = useState("2024-07-01/2024-12-31");
+  const [fetchMaxCloud, setFetchMaxCloud] = useState(20);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [caseStudyLoadingSlug, setCaseStudyLoadingSlug] = useState<string | null>(null);
 
   const [openSections, setOpenSections] = useState({
     analysis: true,
@@ -115,7 +124,7 @@ export default function App() {
     setRightPanelTab("details");
   }
 
-  async function runAnalysis(before: File, after: File) {
+  async function trackAnalysis(start: () => Promise<{ analysis_id: string }>) {
     setSelected(null);
     setFacilities(null);
     setHazardZone(null);
@@ -124,7 +133,7 @@ export default function App() {
     setRightPanelTab("priority");
     setState({ phase: "uploading" });
     try {
-      const { analysis_id } = await createAnalysis(before, after, mode, engine);
+      const { analysis_id } = await start();
       setState({ phase: "processing", id: analysis_id, step: "validating", steps: [] });
       const analysis = await pollUntilReady(analysis_id, (status) => {
         setState({
@@ -148,9 +157,39 @@ export default function App() {
     }
   }
 
+  async function runAnalysis(before: File, after: File) {
+    await trackAnalysis(() => createAnalysis(before, after, mode, engine));
+  }
+
   async function handleSubmit() {
     if (!beforeFile || !afterFile) return;
     await runAnalysis(beforeFile, afterFile);
+  }
+
+  async function handleFetchSubmit() {
+    if (!fetchPlace.trim()) return;
+    setFetchLoading(true);
+    try {
+      await trackAnalysis(() =>
+        fetchAnalysis({
+          place: fetchPlace.trim(),
+          beforeDateRange: fetchBeforeRange,
+          afterDateRange: fetchAfterRange,
+          maxCloud: fetchMaxCloud,
+          mode,
+          engine,
+        }),
+      );
+    } finally {
+      setFetchLoading(false);
+    }
+  }
+
+  async function handleLoadCaseStudy(slug: string) {
+    setCaseStudyLoadingSlug(slug);
+    setPage("analysis");
+    await trackAnalysis(() => loadCaseStudy(slug, mode, engine));
+    setCaseStudyLoadingSlug(null);
   }
 
   async function handleLoadDemo() {
@@ -234,6 +273,8 @@ export default function App() {
           <AccuracyPage />
         ) : page === "settings" ? (
           <SettingsPage />
+        ) : page === "case_studies" ? (
+          <CaseStudiesPage onLoad={handleLoadCaseStudy} loadingSlug={caseStudyLoadingSlug} />
         ) : (
           <>
             <aside
@@ -303,8 +344,94 @@ export default function App() {
                       Pixel size ~<span className="mono">{ready.analysis.pixel_size_m?.toFixed(1)}</span> m
                       {ready.analysis.engine_fell_back && <> — fell back to spectral baseline</>}
                     </p>
+                    {ready.analysis.fetch_meta && (
+                      <p
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--color-text-faint)",
+                          marginTop: "4px",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        Auto-fetched: before {ready.analysis.fetch_meta.before_scene.date.slice(0, 10)} (
+                        {ready.analysis.fetch_meta.before_scene.cloud_cover.toFixed(1)}% cloud) → after{" "}
+                        {ready.analysis.fetch_meta.after_scene.date.slice(0, 10)} (
+                        {ready.analysis.fetch_meta.after_scene.cloud_cover.toFixed(1)}% cloud)
+                      </p>
+                    )}
                   </div>
                 )}
+
+                <div
+                  style={{
+                    marginTop: "16px",
+                    paddingTop: "14px",
+                    borderTop: "1px solid var(--color-border)",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      color: "var(--color-text-faint)",
+                      margin: "0 0 8px",
+                    }}
+                  >
+                    Or fetch imagery by place
+                  </p>
+                  <input
+                    className="ts-input"
+                    style={{ width: "100%", marginBottom: "6px" }}
+                    placeholder="Place name, e.g. Wayanad, Kerala"
+                    value={fetchPlace}
+                    onChange={(e) => setFetchPlace(e.target.value)}
+                  />
+                  <div style={{ display: "flex", gap: "6px", marginBottom: "6px" }}>
+                    <input
+                      className="ts-input"
+                      style={{ flex: 1, fontSize: "11px" }}
+                      placeholder="before YYYY-MM-DD/YYYY-MM-DD"
+                      value={fetchBeforeRange}
+                      onChange={(e) => setFetchBeforeRange(e.target.value)}
+                    />
+                    <input
+                      className="ts-input"
+                      style={{ flex: 1, fontSize: "11px" }}
+                      placeholder="after YYYY-MM-DD/YYYY-MM-DD"
+                      value={fetchAfterRange}
+                      onChange={(e) => setFetchAfterRange(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)" }}>
+                      Max cloud %
+                    </span>
+                    <input
+                      type="number"
+                      className="ts-input"
+                      style={{ width: "64px" }}
+                      value={fetchMaxCloud}
+                      min={0}
+                      max={100}
+                      onChange={(e) => setFetchMaxCloud(Number(e.target.value))}
+                    />
+                  </div>
+                  <button
+                    className="ts-btn"
+                    style={{ width: "100%" }}
+                    disabled={
+                      !fetchPlace.trim() ||
+                      fetchLoading ||
+                      state.phase === "uploading" ||
+                      state.phase === "processing"
+                    }
+                    onClick={handleFetchSubmit}
+                  >
+                    {fetchLoading ? "Fetching…" : "Fetch & analyze"}
+                  </button>
+                </div>
               </CollapsibleSection>
 
               <CollapsibleSection

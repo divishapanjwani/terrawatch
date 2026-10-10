@@ -45,4 +45,11 @@ class Analysis(SQLModel, table=True):
     near_facility_count: Optional[int] = Field(default=None)
     hazard_zone_geojson: Optional[str] = Field(default=None)  # user-provided zone, Prevention mode
 
+    # Round 3: auto-fetch (app/geo/fetch.py) -- JSON {bbox, before_scene:
+    # {date, cloud_cover, item_id}, after_scene: {...}, place}. None for
+    # analyses created via direct GeoTIFF upload.
+    fetch_meta: Optional[str] = Field(default=None)
+    case_study_slug: Optional[str] = Field(default=None)  # set when loaded from the Case Studies gallery
+    is_auto_fetch: bool = Field(default=False)  # True for /api/analyses/fetch (vs. direct GeoTIFF upload)
+
     created_at: datetime = Field(default_factory=utcnow)

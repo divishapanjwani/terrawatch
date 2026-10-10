@@ -22,12 +22,28 @@ export interface QualityReport {
   warnings: string[];
 }
 
+export interface SceneMeta {
+  date: string;
+  cloud_cover: number;
+  item_id?: string;
+}
+
+export interface FetchMeta {
+  bbox: [number, number, number, number];
+  before_scene: SceneMeta;
+  after_scene: SceneMeta;
+  place: string | null;
+}
+
 export interface AnalysisStatus {
   id: string;
   mode: string;
   status: "pending" | "ready" | "failed";
   progress_step: string;
   progress_steps: string[];
+  is_auto_fetch: boolean;
+  fetch_meta: FetchMeta | null;
+  case_study_slug: string | null;
   error_message: string | null;
   bounds: Bounds | null;
   engine_choice: EngineChoice;
@@ -68,6 +84,67 @@ export async function createAnalysis(
   });
   if (!res.ok) {
     throw new Error(`Upload failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export interface FetchParams {
+  place?: string;
+  bbox?: [number, number, number, number];
+  beforeDateRange: string;
+  afterDateRange: string;
+  maxCloud?: number;
+  mode: string;
+  engine?: EngineChoice;
+}
+
+export async function fetchAnalysis(params: FetchParams): Promise<{ analysis_id: string }> {
+  const form = new FormData();
+  if (params.place) form.append("place", params.place);
+  if (params.bbox) form.append("bbox", params.bbox.join(","));
+  form.append("before_date_range", params.beforeDateRange);
+  form.append("after_date_range", params.afterDateRange);
+  form.append("max_cloud", String(params.maxCloud ?? 20));
+  form.append("mode", params.mode);
+  form.append("engine", params.engine ?? "auto");
+
+  const res = await fetch(`${API_BASE}/api/analyses/fetch`, { method: "POST", body: form });
+  if (!res.ok) {
+    throw new Error(`Fetch failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export interface CaseStudy {
+  slug: string;
+  name: string;
+  location: string;
+  event_date: string;
+  category: string;
+  description: string;
+  bbox: [number, number, number, number] | null;
+  known_scenes: { before: SceneMeta; after: SceneMeta } | null;
+  thumbnail_url: string;
+  cached: boolean;
+}
+
+export async function listCaseStudies(): Promise<CaseStudy[]> {
+  const res = await fetch(`${API_BASE}/api/case_studies`);
+  if (!res.ok) throw new Error(`Failed to list case studies: ${res.status}`);
+  return res.json();
+}
+
+export async function loadCaseStudy(
+  slug: string,
+  mode: string,
+  engine: EngineChoice = "auto",
+): Promise<{ analysis_id: string }> {
+  const res = await fetch(
+    `${API_BASE}/api/case_studies/${slug}/load?mode=${mode}&engine=${engine}`,
+    { method: "POST" },
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to load case study: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

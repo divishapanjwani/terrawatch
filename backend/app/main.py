@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.analyses import router as analyses_router
+from app.api.case_studies import router as case_studies_router
 from app.api.settings import router as settings_router
 from app.db import DATA_DIR, init_db
 
@@ -19,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(analyses_router)
+app.include_router(case_studies_router)
 app.include_router(settings_router)
 
 

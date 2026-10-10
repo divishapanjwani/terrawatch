@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { BarChart3, Layers, Settings as SettingsIcon, SlidersHorizontal } from "lucide-react";
+import { BarChart3, GalleryHorizontal, Layers, Settings as SettingsIcon, SlidersHorizontal } from "lucide-react";
 
-export type RailPage = "analysis" | "accuracy" | "settings";
+export type RailPage = "analysis" | "case_studies" | "accuracy" | "settings";
 
 function RailButton({
   active,
@@ -69,6 +69,13 @@ export default function LeftRail({
     >
       <RailButton active={page === "analysis"} title="Analysis" onClick={() => onNavigate("analysis")}>
         <SlidersHorizontal size={18} strokeWidth={1.75} />
+      </RailButton>
+      <RailButton
+        active={page === "case_studies"}
+        title="Case studies"
+        onClick={() => onNavigate("case_studies")}
+      >
+        <GalleryHorizontal size={18} strokeWidth={1.75} />
       </RailButton>
       <RailButton active={false} title="Map layers" onClick={onJumpToLayers}>
         <Layers size={18} strokeWidth={1.75} />

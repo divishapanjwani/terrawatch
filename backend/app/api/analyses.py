@@ -9,9 +9,11 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Uploa
 from fastapi.responses import FileResponse, JSONResponse
 from sqlmodel import select
 
+from app import config
 from app.config import PROGRESS_STEPS
 from app.db import ANALYSES_DIR, OSM_CACHE_DIR, UPLOADS_DIR, get_session
 from app.engines.select import VALID_FORCED_CHOICES
+from app.geo.fetch import FetchError, fetch_scene_pair, resolve_bbox
 from app.geo.preview import read_metadata
 from app.impact.facilities import OSMFetchError, fetch_facilities
 from app.models import Analysis
@@ -160,6 +162,114 @@ async def create_analysis(
     return {"analysis_id": analysis_id}
 
 
+def _process_fetch_and_analysis(
+    analysis_id: str,
+    place: Optional[str],
+    bbox: Optional[tuple],
+    before_date_range: str,
+    after_date_range: str,
+    max_cloud: float,
+    upload_dir: Path,
+    output_dir: Path,
+    engine_choice: str,
+    mode: str,
+    case_study_slug: Optional[str] = None,
+) -> None:
+    _set_progress(analysis_id, "fetching")
+    try:
+        resolved_bbox = resolve_bbox(place, bbox)
+        fetch_result = fetch_scene_pair(resolved_bbox, before_date_range, after_date_range, max_cloud, upload_dir)
+        fetch_result["place"] = place
+    except FetchError as exc:
+        with get_session() as session:
+            analysis = session.get(Analysis, analysis_id)
+            analysis.status = "failed"
+            analysis.error_message = str(exc)
+            session.add(analysis)
+            session.commit()
+        return
+
+    with get_session() as session:
+        analysis = session.get(Analysis, analysis_id)
+        analysis.fetch_meta = json.dumps(fetch_result)
+        if case_study_slug:
+            analysis.case_study_slug = case_study_slug
+        session.add(analysis)
+        session.commit()
+
+    _process_analysis(
+        analysis_id,
+        str(upload_dir / "before.tif"),
+        str(upload_dir / "after.tif"),
+        output_dir,
+        engine_choice,
+        mode,
+    )
+
+
+def _parse_bbox_str(bbox_str: str) -> tuple:
+    parts = [float(x) for x in bbox_str.split(",")]
+    if len(parts) != 4:
+        raise HTTPException(status_code=400, detail="bbox must be 'west,south,east,north'")
+    return tuple(parts)
+
+
+@router.post("/fetch")
+async def fetch_analysis(
+    background_tasks: BackgroundTasks,
+    before_date_range: str = Form(...),
+    after_date_range: str = Form(...),
+    place: Optional[str] = Form(None),
+    bbox: Optional[str] = Form(None),
+    max_cloud: float = Form(config.FETCH_DEFAULT_MAX_CLOUD),
+    mode: str = Form("disaster"),
+    engine: str = Form("auto"),
+):
+    """Auto-fetch: place name (geocoded via Nominatim) or a drawn bbox +
+    before/after date ranges + max cloud % -> lowest-cloud Sentinel-2
+    L2A scenes, clipped and run through the normal pipeline."""
+    if engine not in VALID_FORCED_CHOICES:
+        raise HTTPException(status_code=400, detail=f"engine must be one of {VALID_FORCED_CHOICES}")
+    if not place and not bbox:
+        raise HTTPException(status_code=400, detail="Provide either 'place' or 'bbox'")
+
+    parsed_bbox = _parse_bbox_str(bbox) if bbox else None
+
+    analysis_id = uuid.uuid4().hex[:12]
+    upload_dir = UPLOADS_DIR / analysis_id
+    output_dir = ANALYSES_DIR / analysis_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    analysis = Analysis(
+        id=analysis_id,
+        mode=mode,
+        status="pending",
+        progress_step="fetching",
+        engine_choice=engine,
+        is_auto_fetch=True,
+    )
+    with get_session() as session:
+        session.add(analysis)
+        session.commit()
+
+    background_tasks.add_task(
+        _process_fetch_and_analysis,
+        analysis_id,
+        place,
+        parsed_bbox,
+        before_date_range,
+        after_date_range,
+        max_cloud,
+        upload_dir,
+        output_dir,
+        engine,
+        mode,
+    )
+
+    return {"analysis_id": analysis_id}
+
+
 @router.get("/{analysis_id}")
 async def get_analysis(analysis_id: str):
     with get_session() as session:
@@ -178,7 +288,10 @@ async def get_analysis(analysis_id: str):
             "mode": analysis.mode,
             "status": analysis.status,
             "progress_step": analysis.progress_step,
-            "progress_steps": PROGRESS_STEPS,
+            "progress_steps": config.FETCH_PROGRESS_STEPS if analysis.is_auto_fetch else PROGRESS_STEPS,
+            "is_auto_fetch": analysis.is_auto_fetch,
+            "fetch_meta": json.loads(analysis.fetch_meta) if analysis.fetch_meta else None,
+            "case_study_slug": analysis.case_study_slug,
             "error_message": analysis.error_message,
             "bounds": _parse(analysis.bounds),
             "engine_choice": analysis.engine_choice,
