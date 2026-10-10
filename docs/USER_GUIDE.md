@@ -39,7 +39,6 @@ Start the TerraWatch application and open the analysis interface.
 
 The main interface provides the controls for selecting satellite images, choosing the analysis mode and engine, and starting an analysis.
 
-
 ### Step 2: Upload the before image
 
 Select the GeoTIFF image representing the area before the event or construction change.
@@ -83,7 +82,6 @@ The intended workflow includes image-quality checks, alignment, change detection
 
 If processing fails, check the displayed error and confirm that the backend is running, the API endpoints are correctly configured, and the input files meet the application's requirements.
 
-
 ### Step 7: Examine the map
 
 After a successful analysis, use the map to inspect the before-and-after imagery and the detected regions.
@@ -91,8 +89,6 @@ After a successful analysis, use the map to inspect the before-and-after imagery
 Where supported by the current application, users can examine polygon boundaries and open individual detections to review their attributes.
 
 Do not assume that every highlighted region represents confirmed damage. Some differences may be caused by clouds, shadows, vegetation, or image-quality problems.
-
-
 
 ### Step 8: Review detection details
 
@@ -125,6 +121,53 @@ Where export functionality is available, users can export geospatial results in 
 - **GeoPackage:** Useful for packaging geospatial data for GIS workflows.
 
 The exported results can be opened in compatible tools such as QGIS or ArcGIS. Confirm that the exported file opens correctly and that its coordinate reference system and attributes are preserved.
+
+### Step 11: Analyse any place in India
+
+Instead of uploading files, type a place name (e.g. "Pune, Maharashtra") under **Or fetch imagery by place**. Alternatively, switch on **Draw a box** and click two corners on the map to define the area of interest.
+
+Enter the before and after date ranges in the format `YYYY-MM-DD/YYYY-MM-DD`. Ideally, choose dates from the same season in different years and avoid June–September monsoon clouds where possible.
+
+Click **Fetch & analyze**. TerraWatch downloads suitable free Sentinel-2 imagery with the lowest available cloud cover and runs the full analysis. Processing typically takes 1–2 minutes, depending on the area and data availability.
+
+Boxes larger than approximately 28 km per side are not allowed, helping keep analyses manageable.
+
+### Step 12: Load a case study
+
+Open **Case studies** in the left menu and click **Load case study** on one of the available examples:
+
+- **Wayanad:** 2024 landslide.
+- **Sikkim:** 2023 glacial lake flood.
+- **Himachal Pradesh:** 2023 floods.
+- **Pune:** Urban growth.
+
+Case studies provide example scenarios for exploring TerraWatch's change-detection and prioritization features. Available results and functionality depend on the data included in the running version.
+
+### Step 13: Check road access
+
+Click a detected change that touches a mapped road. Where route-impact analysis is available, inspect the **Route impact** row and the corresponding line on the map to understand whether the nearest hospital may still be reachable.
+
+The result may indicate:
+
+- **None:** No route impact was identified by the analysis.
+- **Detour:** An alternative route may be required.
+- **No alternative:** The analysed road-network graph indicates that no alternative route is available. This is shown in red.
+
+These results indicate possible road-access disruption based on the available road network. They do not confirm that a road is physically damaged or closed. Verify important findings on the ground before making operational decisions.
+
+### Step 14: Create a field report
+
+Open **Export** and choose **Field report**. Where supported, select your preferred language:
+
+- English
+- हिंदी (Hindi)
+- मराठी (Marathi)
+
+Generate the report as a PDF or a mobile-friendly page, depending on the available export options.
+
+The report lists the top 10 priority areas and provides Google Maps links to help field teams locate them. The mobile-friendly version can be shared through messaging applications such as WhatsApp.
+
+Review the report before sharing it. Population figures, severity scores, detections, and route-impact results are estimates or analytical indicators and should not be treated as independently verified facts.
 
 ## 5. Understanding False Alarms
 
