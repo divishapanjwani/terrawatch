@@ -1,5 +1,58 @@
 # Handoff — TerraWatch
 
+## Current status & next steps (Round 3, this session, 10 Oct 2026 morning)
+
+Session ended early (usage limit) partway through Round 3's 4-item build
+list. Full log/numbers: `docs/OVERNIGHT_DEVELOPMENT.md`.
+
+**Done and merged into `main`:**
+- `docs/OVERNIGHT_DEVELOPMENT.md` + README "Overnight Development"
+  section, documenting the Round 2 overnight push (dark UI, severity/
+  ranking fix, KPI/accuracy fixes, 4 UI bugs, PR #4 submission package).
+- **Item 1 (any place in India + Case Studies gallery):** auto-fetch by
+  place name (Nominatim geocode → Planetary Computer Sentinel-2) at
+  `POST /api/analyses/fetch`, shown in the UI; a 4-event Case Studies
+  gallery (`GET /api/case_studies`, `POST /api/case_studies/{slug}/load`)
+  with cached imagery and thumbnails — Wayanad, Sikkim GLOF, Himachal
+  floods, Pune growth. Verified end-to-end via real browser testing
+  (Playwright), not just curl. 71/71 backend tests pass, frontend build
+  clean. **Known gap:** bbox fetch works server-side (tested via curl)
+  but has no draw-a-box UI control yet — only place-name search is wired
+  up in the frontend.
+
+**Not started — items 2, 3, 4 from the build list are still open:**
+2. **All-weather radar mode (Sentinel-1):** fetch VV/VH RTC/GRD
+   before/after from Planetary Computer, log-ratio change detection with
+   Otsu threshold + a flood-water rule, vectorize into the same polygon
+   format, an Optical/Radar switch in the UI, demonstrated on a cloudy-
+   optical event (the Himachal floods case study from Item 1 is the
+   natural candidate — Sentinel-2 over Kullu/Manali during the actual
+   July 2023 flood peak is very likely cloud-heavy; this wasn't checked
+   yet). Next step: start with `pystac_client` against
+   `sentinel-1-rtc` on Planetary Computer for that bbox/date, confirm
+   VV/VH asset availability, then write
+   `backend/app/engines/radar.py` (log-ratio + `skimage.filters.threshold_otsu`)
+   parallel to the existing spectral/engine2 engines, reusing
+   `app/geo/vectorize.py`'s `vectorize()` so polygons flow through the
+   same false_alarm/change_type/severity/priority pipeline unchanged.
+3. **Action layer:** blocked-route checker (osmnx road graph, cached,
+   `route_impact`/`detour_m` columns already reserved at weight 0 in
+   `app/pipeline/priority.py` — just needs wiring), PDF + mobile HTML
+   field report (top 10 priority areas table), English/Hindi/Marathi
+   templates (computed values only, no LLM). Not started.
+4. **Filter v2 + terrain:** Copernicus DEM GLO-30 slope/hillshade per
+   polygon, landslide-requires-slope / flooding-requires-flat rules, a
+   terrain_shadow rejection, improved vegetation_seasonal rule. Not
+   started.
+
+**If resuming:** `git checkout overnight-v2 && git pull`, confirm
+`git log --oneline -5` shows the Item 1 commits, then continue with
+Item 2 in the order above. The repo's dev sqlite db
+(`backend/data/terrawatch.db`) was deleted once this session to pick up
+new `Analysis` model columns (gitignored, safe to delete again if the
+schema changes further — it's not seed data).
+
+
 You're picking this up at the start of **Phase 6** (Phase 5 is merged
 into main). This file is the practical "get running and know what's
 real" doc. `README.md` has the fuller technical writeup per phase;
