@@ -35,6 +35,8 @@ def _attrs(p: PolygonResult, analysis_id: str) -> dict:
         "priority_score": p.priority_score,
         "priority_rank": p.priority_rank,
         "priority_reason": p.priority_reason,
+        "route_impact": p.route_impact,
+        "detour_m": p.detour_m,
     }
 
 

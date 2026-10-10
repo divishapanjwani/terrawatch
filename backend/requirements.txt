@@ -21,3 +21,11 @@ requests
 # Phase 6 auto-fetch (also used by scripts/fetch_real_test_pair.py today)
 pystac-client
 planetary-computer
+
+# Round 3 action layer: blocked-route checker (app/impact/routes.py)
+osmnx
+networkx
+scikit-learn  # osmnx.distance.nearest_nodes needs this for unprojected graphs
+
+# Round 3 field report: PDF generation (app/reports/field_report.py)
+weasyprint

@@ -35,6 +35,8 @@ class _FakePolygon:
         self.priority_score = None
         self.priority_rank = None
         self.priority_reason = None
+        self.route_impact = None
+        self.detour_m = None
 
 
 # Centroid of each polygon below, reprojected to EPSG:4326, is roughly

@@ -20,6 +20,7 @@ from app.geo.quality import run_quality_check
 from app.geo.vectorize import compute_bounds_4326, vectorize
 from app.impact.facilities import fetch_facilities
 from app.impact.population import compute_population, generate_population_overlay_png
+from app.impact.routes import RouteGraphError, compute_route_impacts
 from app.pipeline.change_type import apply_change_types
 from app.pipeline.false_alarm import apply_false_alarm_filter
 from app.pipeline.priority import apply_hazard_zone, compute_priority
@@ -135,6 +136,10 @@ def run_pipeline(
     if kept:
         facilities = fetch_facilities(bounds_4326, OSM_CACHE_DIR)
         population_available = compute_population(kept, bounds_4326)
+        try:
+            compute_route_impacts(kept, facilities, bounds_4326)
+        except RouteGraphError as exc:
+            quality_report.warnings.append(f"Route graph unavailable, route_impact not computed: {exc}")
         if hazard_zone_geojson:
             hazard_geom = shapely_shape(json.loads(hazard_zone_geojson))
             apply_hazard_zone(kept, hazard_geom)

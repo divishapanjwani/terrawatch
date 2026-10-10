@@ -86,6 +86,15 @@ def _nearby_list(point_xy: tuple, hospitals_xy, schools_xy, shelters_xy, roads_n
     return items[: config.FACILITY_LIST_MAX_ITEMS]
 
 
+def _route_impact_phrase(route_impact, detour_m) -> str | None:
+    if route_impact == "no_alternative":
+        return f"nearest hospital route may be cut off ({config.ROUTE_BLOCKAGE_WORDING})"
+    if route_impact == "detour":
+        detour_txt = f"~{detour_m:.0f} m detour" if detour_m is not None else "a detour"
+        return f"{detour_txt} to reach the nearest hospital ({config.ROUTE_BLOCKAGE_WORDING})"
+    return None
+
+
 def _build_reason(p) -> str:
     parts = [f"{p.severity} severity" if p.severity else "Unknown severity"]
     if p.population_buffer_est is not None and p.population_buffer_est >= 1:
@@ -98,6 +107,9 @@ def _build_reason(p) -> str:
     if candidates:
         dist, label = min(candidates, key=lambda c: c[0])
         parts.append(f"{dist:.0f} m from a {label}")
+    route_phrase = _route_impact_phrase(p.route_impact, p.detour_m)
+    if route_phrase:
+        parts.append(route_phrase)
     return "; ".join(parts) + "."
 
 
@@ -132,6 +144,9 @@ def _row_reason(row) -> str:
     if candidates:
         dist, label = min(candidates, key=lambda c: c[0])
         parts.append(f"{dist:.0f} m from a {label}")
+    route_phrase = _route_impact_phrase(row.get("route_impact"), row.get("detour_m"))
+    if route_phrase:
+        parts.append(route_phrase)
     reason = "; ".join(parts) + "."
     if row.get("in_hazard_zone"):
         reason = f"{config.HAZARD_ZONE_WORDING}. {reason}"
@@ -238,12 +253,13 @@ def compute_priority(
 
     for p, norm_pop in zip(kept_polygons, norm_population):
         facility_proximity = max(_closeness(p.nearest_hospital_m), _closeness(p.nearest_school_m))
+        route_impact_score = config.ROUTE_IMPACT_SCORE.get(p.route_impact, 0.0)
         p.priority_score = round(
             w["w1_severity"] * (p.sev_score or 0.0)
             + w["w2_population"] * norm_pop
             + w["w3_facility_proximity"] * facility_proximity
             + w["w4_confidence"] * p.confidence
-            + w["w5_route_impact"] * 0.0,
+            + w["w5_route_impact"] * route_impact_score,
             4,
         )
 

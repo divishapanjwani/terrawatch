@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import { AlertTriangle, Cpu, Hospital, Landmark, MapPin, Route, X } from "lucide-react";
@@ -25,6 +25,7 @@ import {
   createAnalysis,
   fetchAnalysis,
   getFacilities,
+  getPolygonRoute,
   getPolygons,
   imageryUrl,
   loadCaseStudy,
@@ -32,6 +33,7 @@ import {
   populationOverlayUrl,
 } from "./api/client";
 import type { AnalysisStatus, EngineChoice, FacilitiesData } from "./api/client";
+import type { RouteDisplay } from "./map/CompareMap";
 
 type AppState =
   | { phase: "empty" }
@@ -75,6 +77,7 @@ export default function App() {
   const [fetchMaxCloud, setFetchMaxCloud] = useState(20);
   const [fetchLoading, setFetchLoading] = useState(false);
   const [caseStudyLoadingSlug, setCaseStudyLoadingSlug] = useState<string | null>(null);
+  const [routeDisplay, setRouteDisplay] = useState<RouteDisplay | null>(null);
 
   const [openSections, setOpenSections] = useState({
     analysis: true,
@@ -242,6 +245,34 @@ export default function App() {
   }
 
   const ready = state.phase === "ready" ? state : null;
+
+  useEffect(() => {
+    const routeImpact = selected?.properties?.route_impact as string | undefined;
+    const analysisId = ready?.analysis.id;
+    const polygonId = selected?.properties?.id != null ? String(selected.properties.id) : null;
+    if (!analysisId || !polygonId || !routeImpact || routeImpact === "null") {
+      setRouteDisplay(null);
+      return;
+    }
+    let cancelled = false;
+    getPolygonRoute(analysisId, polygonId)
+      .then((r) => {
+        if (cancelled) return;
+        setRouteDisplay({
+          routeImpact: r.route_impact,
+          originalPath: r.original_path,
+          detourPath: r.detour_path,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setRouteDisplay(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, ready?.analysis.id]);
+
   const analysisName = ready
     ? beforeFile?.name.toLowerCase().includes("wayanad")
       ? "Wayanad · Jul 2024"
@@ -659,6 +690,7 @@ export default function App() {
                           drawMode={drawMode}
                           onDrawComplete={handleDrawComplete}
                           hazardZone={hazardZone}
+                          route={routeDisplay}
                         />
                       )}
                     </div>

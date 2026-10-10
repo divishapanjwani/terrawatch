@@ -201,16 +201,30 @@ FACILITY_LIST_MAX_ITEMS = 5
 # ---------------------------------------------------------------------------
 # Priority score v2 (app/pipeline/priority.py) -- full Phase 5 formula:
 # priority = w1*sev_score + w2*norm(population_est) + w3*facility_proximity
-#            + w4*confidence + w5*route_impact (route_impact reserved, Phase 7)
+#            + w4*confidence + w5*route_impact_score
 # facility_proximity = closer of hospital/school closeness (see
-# PRIORITY_PROXIMITY_MAX_M above). Editable via scripts/settings -- see
-# app/settings.py; these are the defaults for new analyses.
+# PRIORITY_PROXIMITY_MAX_M above). route_impact_score (Round 3, app/impact/
+# routes.py): none=0.0, unknown=0.0 (no signal either way), detour=0.6,
+# no_alternative=1.0 -- a confirmed-unreachable hospital route outweighs a
+# mere detour. Editable via scripts/settings -- see app/settings.py; these
+# are the defaults for new analyses. Rebalanced from the Phase 5 weights
+# (0.35/0.25/0.2/0.2/0.0) to make room for a real w5 while keeping the
+# relative order severity > population > facility/confidence > route.
 # ---------------------------------------------------------------------------
-PRIORITY_W1_SEVERITY = 0.35
-PRIORITY_W2_POPULATION = 0.25
-PRIORITY_W3_FACILITY_PROXIMITY = 0.2
-PRIORITY_W4_CONFIDENCE = 0.2
-PRIORITY_W5_ROUTE_IMPACT = 0.0  # reserved for Phase 7
+PRIORITY_W1_SEVERITY = 0.30
+PRIORITY_W2_POPULATION = 0.20
+PRIORITY_W3_FACILITY_PROXIMITY = 0.15
+PRIORITY_W4_CONFIDENCE = 0.15
+PRIORITY_W5_ROUTE_IMPACT = 0.20
+
+# ---------------------------------------------------------------------------
+# Blocked-route checker (app/impact/routes.py) -- osmnx drive-network graph,
+# cached to disk like facilities (same buffer, same catchment a hospital
+# trip would realistically use).
+# ---------------------------------------------------------------------------
+ROUTE_GRAPH_BUFFER_DEG = OSM_FACILITY_BUFFER_DEG
+ROUTE_IMPACT_SCORE = {"none": 0.0, "unknown": 0.0, "detour": 0.6, "no_alternative": 1.0}
+ROUTE_BLOCKAGE_WORDING = "possible blockage — verify on ground"
 
 # ---------------------------------------------------------------------------
 # Prevention mode: hazard zones (app/pipeline/priority.py, app/api/analyses.py)
