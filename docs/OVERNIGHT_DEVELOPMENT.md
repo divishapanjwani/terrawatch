@@ -179,3 +179,65 @@ Screenshot: `~/Desktop/screenshots/overnight/00_baseline_wayanad.png`.
 Each item below is appended only once it's implemented, tested, and merged
 into `main` — see the per-item entries that follow for real numbers and
 screenshots.
+
+### Item 1: any place in India + Case Studies gallery — DONE
+
+**Auto-fetch** (`backend/app/geo/fetch.py`, `POST /api/analyses/fetch`):
+a place name is geocoded via Nominatim (OpenStreetMap, India-scoped,
+1 req/s per its usage policy) into a ~6-7 km bbox, or a bbox can be
+passed directly (`bbox=west,south,east,north` — supported and tested via
+curl, but **not yet wired to a draw-on-map control in the frontend**,
+only place-name search; noted here rather than silently dropped). The
+lowest-cloud Sentinel-2 L2A scene in each of the given before/after date
+ranges is fetched from Planetary Computer, clipped, and run through the
+unmodified pipeline. The chosen scene dates and cloud % are shown in the
+UI ("Auto-fetched: before 2023-01-09 (0.0% cloud) → after 2023-11-15
+(1.4% cloud)").
+
+Verified end-to-end through the real browser UI (Playwright, not just
+curl): searched "Chungthang, Sikkim, India" → geocoded, fetched, and
+analyzed → **169 kept, 45 rejected** (214 candidates), 51 High / 75
+Medium / 43 Low, ~1,251 people estimate, no console errors. Screenshot:
+`03_fetch_by_place.png`.
+
+**Case Studies gallery** (`backend/app/case_studies.py`,
+`GET /api/case_studies`, `POST /api/case_studies/{slug}/load`,
+`frontend/src/pages/CaseStudiesPage.tsx`): 4 real Indian events, each
+with a pre-fetched, cached Sentinel-2 pair (`backend/data/case_studies/`,
+gitignored, regenerate via `scripts/fetch_case_studies.py`) and a
+committed thumbnail (`frontend/public/case_studies/<slug>.jpg`) — no
+live Planetary Computer call needed to demo it:
+
+| Case study | Location | Event | Result (real pipeline run) |
+|---|---|---|---|
+| Wayanad landslide | Mundakkai/Chooralmala, Kerala | 30 Jul 2024 | 179 kept / 8 rejected (existing demo pair) |
+| Sikkim GLOF / Teesta valley | Chungthang, Sikkim | 4 Oct 2023 dam breach | **347 kept / 72 rejected**, 92 High/166 Med/89 Low, ~1,714 people est. |
+| Himachal Pradesh floods | Manali, Kullu valley, HP | 7-10 Jul 2023 | cached and loadable; see caveat below |
+| Pune urban growth | Punawale/Ravet, Pimpri-Chinchwad | 2019→2024 | 7 kept incl. 2 genuine `new_construction` (see verification below) |
+
+Coordinates/dates were verified, not guessed — against Nominatim (place
+→ precise lat/lon, e.g. Teesta Stage III Dam 27.5975°N/88.6508°E),
+Nature Scientific Reports (Wayanad), and Wikipedia (Himachal/Sikkim
+event pages). Two verification failures are documented honestly rather
+than hidden: the original Kullu-town bbox straddled the edge of
+Sentinel-2 tile T43SGR and produced mismatched band shapes on fetch —
+shifted to Manali, fully inside the tile (see
+`app/case_studies.py`'s `source` field for the Himachal entry); and 2 of
+3 candidate Pune bboxes (Kharadi, the original Phase-5 Hinjewadi bbox)
+were tested via `scripts/_test_pune_candidates.py` and rejected because
+they yielded zero real `new_construction` detections under the current
+engine/thresholds — only Punawale/Ravet did.
+
+**Caveat, stated honestly:** the Sikkim GLOF and Pune change-type labels
+are weaker than Wayanad's — `change_type` rules were tuned against
+Wayanad's landslide signature, and on Sikkim most kept polygons
+(mostly river-channel/shoreline change from a lake-level/seasonal shift)
+label as `other` or `structure_lost` rather than a GLOF-specific type,
+and Pune's debris/construction ambiguity (documented in `HANDOFF.md`'s
+change-type gotcha) still produces some `landslide_bare_soil` labels on
+what's actually a construction site. This is a known, reported
+limitation of the rule-based classifier, not a new bug.
+
+Screenshots: `01_case_studies_gallery.png` (all 4 thumbnails), `02_case_study_loaded.png` (Sikkim GLOF loaded, real severity-colored polygons along the Teesta valley).
+
+Backend: 71/71 tests still pass. Frontend: `tsc -b` + `vite build` clean.
