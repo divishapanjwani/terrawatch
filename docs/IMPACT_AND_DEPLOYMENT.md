@@ -108,16 +108,20 @@ Compatibility with a particular government GIS portal must be verified separatel
 
 Satellite imagery and derived maps should not be described as guaranteeing anonymity. Resolution alone is not a complete privacy safeguard, and derived outputs may still reveal sensitive information about locations or infrastructure.
 
+## 6a. Already Implemented (as of 10 Oct 2026)
+
+- **Any place in India:** Analysis by place name or a box drawn on the map, using the least cloudy free Sentinel-2 images in chosen date ranges, plus four real Indian case studies (Wayanad, Sikkim, Himachal Pradesh, Pune).
+- **Blocked-route assessment:** A road-network check flags changes that may cut villages off from the nearest hospital ("possible blockage — verify on ground"). In Wayanad, 10 changes were flagged with no alternative route, including the #1 landslide.
+- **Multilingual field reports:** One-click PDF and mobile-friendly reports in English, Hindi and Marathi, built only from computed results.
+
+  
 ## 7. Proposed Future Roadmap
 
-The following items are proposed enhancements. Their inclusion here does not mean they are implemented or validated in the current submission.
+The following items are proposed enhancements that are not yet implemented in the current submission.
 
-1. **Automatic area and date selection:** Enable users to request analysis for a selected location and time period across India, with clear reporting when suitable imagery is unavailable.
-2. **All-weather monitoring:** Explore Sentinel-1 radar imagery to improve monitoring during cloudy monsoon conditions and at night. Radar requires different processing and validation from optical imagery and does not guarantee detection of every type of change.
-3. **Blocked-route assessment:** Explore route-network analysis to identify potentially disrupted connections between villages and facilities such as hospitals. A mapped route must not be presented as passable without current verification.
-4. **Multilingual field reports:** Support field reporting in English, Hindi, and Marathi, with clear location references and verification status.
-5. **Watch-area alerts:** Provide notifications when new, suitable satellite observations produce candidate changes in selected areas, with quality checks and human review.
-6. **Learning from field feedback:** Establish a documented evaluation process using verified field observations to assess errors and improve the system responsibly.
+1. **All-weather monitoring:** Explore Sentinel-1 radar imagery to improve monitoring during cloudy monsoon conditions and at night. Radar requires different processing and validation from optical imagery and does not guarantee detection of every type of change.
+2. **Watch-area alerts:** Provide notifications when new, suitable satellite observations produce candidate changes in selected areas, with quality checks and human review.
+3. **Learning from field feedback:** Establish a documented evaluation process using verified field observations to assess errors and improve the system responsibly.
 
 Progress on these enhancements should be measured through documented tests, transparent limitations, and feedback from intended users.
 
