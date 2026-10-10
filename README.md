@@ -267,6 +267,20 @@ python scripts/download_population.py   # ~18 MB, WorldPop India 2020 1km
 
 </details>
 
+## Deployment
+
+The backend runs as a long-lived Docker service on **Render** and the frontend is a static Vite build on **Vercel**. The backend isn't serverless because it uses torch/GDAL/weasyprint, runs analyses as in-process background jobs, and keeps sqlite plus uploads on disk.
+
+**Backend (Render):** create a Blueprint from this repo; `render.yaml` defines a Docker web service (`backend/Dockerfile`, built from the repo root) on the `standard` plan (2 GB RAM, which torch needs) with a 5 GB persistent disk at `/var/data`.
+
+| Env var | Purpose |
+|---|---|
+| `TERRAWATCH_STATE_DIR` | Writable state dir (db, uploads, analyses, caches). `/var/data` on Render; defaults to `backend/data` locally. |
+| `CORS_ORIGINS` | Comma-separated allowed origins, e.g. the Vercel production URL. |
+| `CORS_ORIGIN_REGEX` | Optional regex, e.g. for Vercel preview URLs. |
+
+**Frontend (Vercel):** set the project root directory to `frontend/` (`frontend/vercel.json` copies the Wayanad demo GeoTIFFs and builds), and set `VITE_API_BASE` to the Render service URL. Changing it requires a redeploy because Vite inlines it at build time.
+
 ## Testing
 
 ```bash

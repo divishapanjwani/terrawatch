@@ -1,6 +1,8 @@
 import type { FeatureCollection } from "geojson";
 
-export const API_BASE = "http://127.0.0.1:8000";
+// Set VITE_API_BASE at build time for deployed builds (e.g. the Render
+// backend URL); falls back to the local uvicorn server for `npm run dev`.
+export const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export interface Bounds {
   west: number;

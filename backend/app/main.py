@@ -1,4 +1,5 @@
 import json
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,11 @@ EVAL_RESULTS_PATH = DATA_DIR / "eval_results.json"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    # CORS_ORIGINS: comma-separated extra origins, e.g. the Vercel frontend URL.
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"]
+    + [o.strip().rstrip("/") for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()],
+    # CORS_ORIGIN_REGEX: optional, e.g. to allow Vercel preview deployments.
+    allow_origin_regex=os.environ.get("CORS_ORIGIN_REGEX") or None,
     allow_methods=["*"],
     allow_headers=["*"],
 )

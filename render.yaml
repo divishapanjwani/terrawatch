@@ -1,0 +1,21 @@
+# Render Blueprint for the TerraWatch API. Frontend is deployed separately on Vercel.
+services:
+  - type: web
+    name: terrawatch-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    # torch + rasterio + inference need ~1.5-2 GB RAM; free/starter (512 MB) will OOM.
+    plan: standard
+    healthCheckPath: /api/health
+    envVars:
+      - key: TERRAWATCH_STATE_DIR
+        value: /var/data
+      - key: CORS_ORIGINS
+        sync: false # set to the Vercel production URL, e.g. https://terrawatch.vercel.app
+      - key: CORS_ORIGIN_REGEX
+        value: ^https://terrawatch[a-z0-9-]*\.vercel\.app$
+    disk:
+      name: terrawatch-state
+      mountPath: /var/data
+      sizeGB: 5

@@ -7,9 +7,9 @@ already on screen (no live recompute).
 import json
 
 from app import config
-from app.db import DATA_DIR
+from app.db import STATE_DIR
 
-SETTINGS_PATH = DATA_DIR / "settings.json"
+SETTINGS_PATH = STATE_DIR / "settings.json"
 
 WEIGHT_KEYS = ["w1_severity", "w2_population", "w3_facility_proximity", "w4_confidence", "w5_route_impact"]
 

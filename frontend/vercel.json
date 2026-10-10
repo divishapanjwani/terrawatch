@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "mkdir -p public/demo && cp ../sample_data/wayanad/before.tif public/demo/wayanad_before.tif && cp ../sample_data/wayanad/after.tif public/demo/wayanad_after.tif && npm run build",
+  "outputDirectory": "dist"
+}

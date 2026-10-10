@@ -1,0 +1,11 @@
+**/venv/
+**/__pycache__/
+**/node_modules/
+.git/
+frontend/
+docs/
+terrawatch-test-pair/
+backend/data/uploads/
+backend/data/analyses/
+backend/data/*.db
+backend/models/
