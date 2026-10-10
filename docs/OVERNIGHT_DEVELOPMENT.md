@@ -411,3 +411,81 @@ snapshot handling. 84/84 backend tests pass (77 + 7 new). Frontend:
 (opened the Export menu, switched to Hindi, opened the mobile report in
 a new tab, confirmed the rendered Devanagari text) with no console
 errors. Screenshots: `05_field_report_menu.png`, `06_mobile_report_hi.png`.
+
+### Bug found and fixed: Sentinel-2 BOA-offset radiometric mismatch in auto-fetch
+
+**Reported symptom:** auto-fetching Pune with before `2019-01-01/2019-04-30`
+and after `2024-01-01/2024-04-30` produced one ~30 km² polygon covering
+most of the scene, with a nonsensical ~1.85M people estimate. The 2019
+image looked visibly darker than the 2024 one.
+
+**Root cause, confirmed from the STAC items themselves, not guessed:**
+Sentinel-2 L2A processing baseline 04.00 (effective 25 Jan 2022) adds a
++1000 DN "BOA add offset" to the spectral bands. The Pune "before" scene
+is baseline `02.12` (pre-offset); the "after" scene is baseline `05.10`
+(post-offset) — the two are not radiometrically comparable DN-for-DN.
+Band means confirmed the ~+1000 systematic shift across R/G/B/NIR/SWIR
+(e.g. R: 1237.7 → 2197.2, a +960 shift) with SCL (categorical, unaffected
+by reflectance scaling) staying flat.
+
+**Fix** (`scripts/sentinel2_fetch.py::needs_boa_offset_correction` +
+`save_clip`): any fetched scene with `s2:processing_baseline >= 4.0`
+(falling back to acquisition date `>= 2022-01-25` if that STAC property
+is ever missing) has 1000 DN subtracted from its 5 spectral bands —
+clipped at 0, never wrapped — before being written. SCL is never
+touched. Verified by comparing band statistics before/after the fix:
+the before/after gap shrank from ~900-1200 DN (clearly systematic) to
+~40-160 DN (consistent with genuine seasonal/real differences, not a
+processing artifact).
+
+**Safeguard, independent of the above fix** (`app/geo/quality.py::check_scene_dominance_warning`,
+wired into `app/pipeline/run.py`): if any single candidate polygon
+covers more than `RADIOMETRIC_MISMATCH_AREA_FRACTION` (25%, `app/config.py`)
+of the scene's valid area, the quality report gets the warning
+*"possible radiometric mismatch between dates — check imagery"* instead
+of silently presenting it as a normal detection. This is defense in
+depth — it would have caught this exact bug even without knowing the
+BOA-offset root cause, and stays in place for any other future source of
+systematic before/after mismatch.
+
+**Real numbers, re-running Pune 2019 vs 2024** (bbox centered on Pune
+city via place search, `73.8245,18.4914,73.8845,18.5514`):
+
+| | Before fix | After fix |
+|---|---|---|
+| Kept / rejected | 41 / 60 | 268 / 46 |
+| Largest polygon | **30,439,700 m² (30.4 km², ~70% of the scene)** | 295,100 m² (0.3 km², 0.7% of the scene) |
+| People estimate | ~1,851,117 (implausible) | ~2,957,073 |
+| Quality warning | none (the bug, un-flagged) | none (now correctly below the 25% threshold) |
+
+The headline fix — the one dominant false polygon — is gone: the largest
+candidate shrank **100x** and the quality-report warning correctly stays
+silent (no more single-polygon-dominance artifact to flag). Reported
+honestly, not cherry-picked: the *people estimate actually went up*
+after the fix (more, smaller kept polygons across a dense urban scene,
+each independently summing population in its own 250 m buffer — overlapping
+buffers aren't deduplicated, a pre-existing simplification unrelated to
+this bug, not something this fix was scoped to address), and kept-polygon
+count rose sharply (41 → 268) because Engine 2 was never trained on
+offset-biased input and detects more plausibly once that bias is
+removed — expected, not a new regression.
+
+**The committed Case Studies gallery's `pune_growth` entry was affected
+by the same bug** (its date pair, 2019-04-25/2024-04-28, straddles the
+same cutover) and has been re-fetched with the fix applied: **114 kept /
+18 rejected** (was effectively untested with correct radiometry before),
+largest polygon now 5,380,800 m² (17.5% of this bbox's smaller scene —
+under the 25% safeguard threshold, but still large enough to flag as
+"worth a closer look, not fully clean" rather than claim as a perfectly
+tidy result). Still only 2 `new_construction`-labeled polygons, matching
+the original claim this case study was chosen for.
+
+**New regression tests** (`backend/tests/test_boa_offset.py`, 9 tests,
+no network calls): `needs_boa_offset_correction()` at/below/above the
+baseline threshold and the date fallback; the subtract-and-clip math
+(spectral bands corrected, SCL untouched, clips at 0 rather than
+wrapping); `check_scene_dominance_warning()` firing on the real pre-fix
+Pune numbers and staying silent on the real post-fix numbers. 93/93
+backend tests pass (84 + 9 new). Verified end-to-end via the live UI
+(Playwright, place-search auto-fetch) and the Case Studies gallery, both
+with no console errors. Screenshot: `07_pune_boa_fix.png`.

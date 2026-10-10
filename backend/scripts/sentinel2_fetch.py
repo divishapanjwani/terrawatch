@@ -13,8 +13,16 @@ the 10m grid of the other four bands (same approach as app/geo/align.py's
 co-registration, just band-to-band within one scene instead of
 before-to-after). SCL is categorical, so it's resampled with
 nearest-neighbor, not bilinear, to avoid inventing fractional class codes.
+
+Scenes processed under Sentinel-2 processing baseline 04.00+ (25 Jan 2022
+onward) carry a +1000 DN "BOA add offset" the earlier baseline doesn't --
+see needs_boa_offset_correction() below. save_clip() undoes it on the 5
+spectral bands (never SCL) so a before/after pair straddling that date is
+radiometrically comparable, not just visually "the 2024 image looks
+brighter."
 """
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +36,27 @@ from rasterio.windows import from_bounds
 BANDS = ["B04", "B03", "B02", "B08", "B11", "SCL"]  # R, G, B, NIR, SWIR, SCL
 CATEGORICAL_BANDS = {"SCL"}
 CATALOG_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
+
+# Sentinel-2 L2A processing baseline 04.00 (effective 25 Jan 2022) added a
+# +1000 DN "BOA add offset" to the spectral bands so reflectance can't go
+# negative after other corrections -- scenes processed under 04.00+ are NOT
+# radiometrically comparable to older (pre-offset) scenes unless this is
+# undone. See https://sentinels.copernicus.eu/web/sentinel/-/copernicus-sentinel-2-major-products-upgrade-upcoming
+# Detected from the item's own s2:processing_baseline property; falls back
+# to the acquisition date if that property is ever missing.
+BOA_OFFSET_BASELINE_THRESHOLD = 4.0
+BOA_OFFSET_CUTOVER_DATE = datetime(2022, 1, 25, tzinfo=timezone.utc)
+BOA_OFFSET_VALUE = 1000
+
+
+def needs_boa_offset_correction(item) -> bool:
+    baseline = item.properties.get("s2:processing_baseline")
+    if baseline is not None:
+        try:
+            return float(baseline) >= BOA_OFFSET_BASELINE_THRESHOLD
+        except ValueError:
+            pass
+    return item.datetime >= BOA_OFFSET_CUTOVER_DATE
 
 
 def open_catalog():
@@ -86,7 +115,16 @@ def save_clip(item, bbox, out_path: Path) -> dict:
                 data = dst
             bands.append(data)
 
-    stacked = np.stack(bands)  # (5, H, W) uint16, raw DN
+    stacked = np.stack(bands)  # (6, H, W) uint16, raw DN
+
+    boa_corrected = needs_boa_offset_correction(item)
+    if boa_corrected:
+        # Subtract the +1000 BOA add-offset from the 5 spectral bands only
+        # (never SCL, the last band -- it's a categorical class code, not
+        # reflectance) so pre- and post-baseline-04.00 scenes are
+        # comparable DN-for-DN. Clip at 0, not wrap, on underflow.
+        spectral = stacked[:-1].astype(np.int32) - BOA_OFFSET_VALUE
+        stacked[:-1] = np.clip(spectral, 0, None).astype("uint16")
 
     out_meta = {
         "driver": "GTiff",
@@ -104,6 +142,11 @@ def save_clip(item, bbox, out_path: Path) -> dict:
         "date": str(item.datetime),
         "cloud_cover": item.properties.get("eo:cloud_cover"),
         "item_id": item.id,
+        "processing_baseline": item.properties.get("s2:processing_baseline"),
+        "boa_offset_corrected": boa_corrected,
     }
-    print(f"wrote {out_path}  shape={stacked.shape}  cloud_cover={meta['cloud_cover']}  date={meta['date']}")
+    print(
+        f"wrote {out_path}  shape={stacked.shape}  cloud_cover={meta['cloud_cover']}  "
+        f"date={meta['date']}  boa_offset_corrected={boa_corrected}"
+    )
     return meta

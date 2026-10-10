@@ -109,3 +109,16 @@ def run_quality_check(aligned: AlignedPair) -> tuple[QualityReport, np.ndarray, 
         warnings=warnings,
     )
     return report, before_cloud_mask, after_cloud_mask
+
+
+def check_scene_dominance_warning(polygon_areas_m2: list, scene_area_m2: float) -> Optional[str]:
+    """One candidate polygon covering an implausibly large share of the
+    whole scene is more likely a systematic radiometric mismatch between
+    the before/after dates (e.g. an uncorrected Sentinel-2 processing-
+    baseline BOA offset -- see scripts/sentinel2_fetch.py) than one real
+    contiguous change. Returns the warning string, or None."""
+    if not polygon_areas_m2 or scene_area_m2 <= 0:
+        return None
+    if max(polygon_areas_m2) > config.RADIOMETRIC_MISMATCH_AREA_FRACTION * scene_area_m2:
+        return config.RADIOMETRIC_MISMATCH_WARNING
+    return None

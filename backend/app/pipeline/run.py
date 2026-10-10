@@ -16,8 +16,8 @@ from app.geo.align import load_aligned_pair
 from app.geo.export import save_geojson, save_gpkg
 from app.geo.morphology import clean_mask
 from app.geo.preview import generate_preview_pair
-from app.geo.quality import run_quality_check
-from app.geo.vectorize import compute_bounds_4326, vectorize
+from app.geo.quality import check_scene_dominance_warning, run_quality_check
+from app.geo.vectorize import compute_bounds_4326, native_pixel_area_m2, vectorize
 from app.impact.facilities import fetch_facilities
 from app.impact.population import compute_population, generate_population_overlay_png
 from app.impact.routes import RouteGraphError, compute_route_impacts
@@ -120,6 +120,11 @@ def run_pipeline(
 
     apply_false_alarm_filter(polygons, aligned.band_count, quality_report.cloud_method)
     apply_change_types(polygons, aligned.band_count)
+
+    scene_area_m2 = int(valid_mask.sum()) * native_pixel_area_m2(aligned)
+    dominance_warning = check_scene_dominance_warning([p.area_m2 for p in polygons], scene_area_m2)
+    if dominance_warning:
+        quality_report.warnings.append(dominance_warning)
 
     kept = [p for p in polygons if p.status == "kept"]
     rejected = [p for p in polygons if p.status == "rejected"]

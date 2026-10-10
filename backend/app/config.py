@@ -230,3 +230,14 @@ ROUTE_BLOCKAGE_WORDING = "possible blockage — verify on ground"
 # Prevention mode: hazard zones (app/pipeline/priority.py, app/api/analyses.py)
 # ---------------------------------------------------------------------------
 HAZARD_ZONE_WORDING = "New structure detected in hazard zone — verify"
+
+# ---------------------------------------------------------------------------
+# Quality safeguard (app/pipeline/run.py): one candidate polygon covering an
+# implausibly large share of the whole scene is more likely a systematic
+# radiometric mismatch between the before/after dates (e.g. an uncorrected
+# Sentinel-2 processing-baseline offset -- see scripts/sentinel2_fetch.py's
+# needs_boa_offset_correction) than one real contiguous change. Flagged as a
+# quality-report warning, not silently presented as a normal detection.
+# ---------------------------------------------------------------------------
+RADIOMETRIC_MISMATCH_AREA_FRACTION = 0.25
+RADIOMETRIC_MISMATCH_WARNING = "possible radiometric mismatch between dates — check imagery"

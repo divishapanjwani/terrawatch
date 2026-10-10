@@ -104,7 +104,11 @@ CASE_STUDIES = [
         "source": "Nominatim (Punawale 18.6383N,73.7462E / Ravet 18.6433N,73.7451E). Verified against "
         "scripts/_test_pune_candidates.py: 2 other candidate bboxes checked (Kharadi, the original "
         "Phase-5 Hinjewadi bbox) -- this one is the one that actually yields real new_construction "
-        "detections under the current engine/thresholds (2 of 7 kept polygons).",
+        "detections under the current engine/thresholds (2 kept polygons, confirmed again after the "
+        "BOA-offset fix below). NOTE: this pair's dates (2019-04-25, processing baseline 02.12; "
+        "2024-04-28, baseline 05.10) straddle Sentinel-2's Jan-2022 BOA add-offset cutover -- the "
+        "pair is re-fetched with scripts/sentinel2_fetch.py's needs_boa_offset_correction() applied "
+        "(see docs/OVERNIGHT_DEVELOPMENT.md for the before/after numbers of that fix).",
         "known_scenes": {
             "before": {"date": "2019-04-25", "cloud_cover": 0.06},
             "after": {"date": "2024-04-28", "cloud_cover": 0.0},
