@@ -29,6 +29,11 @@ import networkx as nx
 import osmnx as ox
 
 from app import config
+from app.db import DATA_DIR
+
+# osmnx's own HTTP response cache -- defaults to ./cache (cwd-relative, not
+# gitignored); point it at data/ like everything else this project caches.
+ox.settings.cache_folder = str(DATA_DIR / "osmnx_http_cache")
 
 
 class RouteGraphError(RuntimeError):
