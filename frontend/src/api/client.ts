@@ -139,10 +139,9 @@ export async function loadCaseStudy(
   mode: string,
   engine: EngineChoice = "auto",
 ): Promise<{ analysis_id: string }> {
-  const res = await fetch(
-    `${API_BASE}/api/case_studies/${slug}/load?mode=${mode}&engine=${engine}`,
-    { method: "POST" },
-  );
+  const res = await fetch(`${API_BASE}/api/case_studies/${slug}/load?mode=${mode}&engine=${engine}`, {
+    method: "POST",
+  });
   if (!res.ok) {
     throw new Error(`Failed to load case study: ${res.status} ${await res.text()}`);
   }

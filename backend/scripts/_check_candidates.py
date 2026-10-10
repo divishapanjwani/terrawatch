@@ -56,7 +56,9 @@ def main():
                 continue
             print(f"  {label} [{dr}]: {len(items)} candidates shown (lowest cloud first)")
             for it in items[:5]:
-                print(f"    {it.datetime.date()}  cloud={it.properties.get('eo:cloud_cover'):.1f}%  id={it.id}")
+                print(
+                    f"    {it.datetime.date()}  cloud={it.properties.get('eo:cloud_cover'):.1f}%  id={it.id}"
+                )
 
 
 if __name__ == "__main__":

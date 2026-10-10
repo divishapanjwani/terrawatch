@@ -178,7 +178,9 @@ def _process_fetch_and_analysis(
     _set_progress(analysis_id, "fetching")
     try:
         resolved_bbox = resolve_bbox(place, bbox)
-        fetch_result = fetch_scene_pair(resolved_bbox, before_date_range, after_date_range, max_cloud, upload_dir)
+        fetch_result = fetch_scene_pair(
+            resolved_bbox, before_date_range, after_date_range, max_cloud, upload_dir
+        )
         fetch_result["place"] = place
     except FetchError as exc:
         with get_session() as session:

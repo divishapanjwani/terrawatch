@@ -29,14 +29,27 @@ export default function CaseStudiesPage({
   return (
     <div className="ts-scroll" style={{ flex: 1, padding: "32px", overflowY: "auto" }}>
       <h1
-        style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, margin: "0 0 6px", letterSpacing: "-0.01em" }}
+        style={{
+          fontSize: "var(--font-size-xl)",
+          fontWeight: 700,
+          margin: "0 0 6px",
+          letterSpacing: "-0.01em",
+        }}
       >
         Case studies
       </h1>
-      <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", margin: "0 0 28px", lineHeight: 1.5, maxWidth: "720px" }}>
-        Real Indian events with pre-fetched, cached Sentinel-2 imagery — one click runs the full
-        pipeline with no live Planetary Computer call needed. Coordinates and dates verified
-        against named sources (see <span className="mono">backend/app/case_studies.py</span>).
+      <p
+        style={{
+          fontSize: "var(--font-size-sm)",
+          color: "var(--color-text-secondary)",
+          margin: "0 0 28px",
+          lineHeight: 1.5,
+          maxWidth: "720px",
+        }}
+      >
+        Real Indian events with pre-fetched, cached Sentinel-2 imagery — one click runs the full pipeline with
+        no live Planetary Computer call needed. Coordinates and dates verified against named sources (see{" "}
+        <span className="mono">backend/app/case_studies.py</span>).
       </p>
 
       {listError && (
@@ -55,7 +68,11 @@ export default function CaseStudiesPage({
           }}
         >
           {studies.map((cs) => (
-            <div key={cs.slug} className="ts-card" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div
+              key={cs.slug}
+              className="ts-card"
+              style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}
+            >
               <div
                 style={{
                   height: "140px",
@@ -82,19 +99,59 @@ export default function CaseStudiesPage({
                   {CATEGORY_LABEL[cs.category] ?? cs.category}
                 </span>
               </div>
-              <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "6px", flex: 1 }}>
+              <div
+                style={{
+                  padding: "14px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                  flex: 1,
+                }}
+              >
                 <h3 style={{ fontSize: "var(--font-size-md)", fontWeight: 600, margin: 0 }}>{cs.name}</h3>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-text-secondary)", fontSize: "var(--font-size-xs)" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    color: "var(--color-text-secondary)",
+                    fontSize: "var(--font-size-xs)",
+                  }}
+                >
                   <MapPin size={12} /> {cs.location}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-text-secondary)", fontSize: "var(--font-size-xs)" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    color: "var(--color-text-secondary)",
+                    fontSize: "var(--font-size-xs)",
+                  }}
+                >
                   <Calendar size={12} /> {cs.event_date}
                 </div>
-                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.45, margin: "4px 0 8px" }}>
+                <p
+                  style={{
+                    fontSize: "var(--font-size-xs)",
+                    color: "var(--color-text-secondary)",
+                    lineHeight: 1.45,
+                    margin: "4px 0 8px",
+                  }}
+                >
                   {cs.description}
                 </p>
                 {cs.known_scenes && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-text-faint)", fontSize: "11px", marginBottom: "4px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      color: "var(--color-text-faint)",
+                      fontSize: "11px",
+                      marginBottom: "4px",
+                    }}
+                  >
                     <CloudSun size={12} />
                     <span className="mono">
                       {cs.known_scenes.before.date} ({cs.known_scenes.before.cloud_cover.toFixed(1)}% cloud) →{" "}

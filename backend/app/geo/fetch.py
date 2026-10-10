@@ -63,10 +63,24 @@ def bbox_from_point(lat: float, lon: float, half_size_deg: Optional[float] = Non
     return (lon - h, lat - h, lon + h, lat + h)
 
 
+def _check_bbox_size(bbox: tuple) -> None:
+    west, south, east, north = bbox
+    width, height = east - west, north - south
+    if width > config.FETCH_MAX_BBOX_SIDE_DEG or height > config.FETCH_MAX_BBOX_SIDE_DEG:
+        raise FetchError(
+            f"That area is too large ({width:.2f}° x {height:.2f}°) -- max "
+            f"{config.FETCH_MAX_BBOX_SIDE_DEG}° per side (~"
+            f"{config.FETCH_MAX_BBOX_SIDE_DEG * 111:.0f} km). Draw a smaller box."
+        )
+
+
 def resolve_bbox(place: Optional[str], bbox: Optional[tuple]) -> tuple:
     """Exactly one of place/bbox must be given. Returns a (west, south,
-    east, north) bbox, geocoding `place` if that's what was given."""
+    east, north) bbox, geocoding `place` if that's what was given. Raises
+    FetchError if a drawn bbox is implausibly large -- see
+    config.FETCH_MAX_BBOX_SIDE_DEG."""
     if bbox is not None:
+        _check_bbox_size(bbox)
         return bbox
     if place:
         lat, lon = geocode_place(place)

@@ -173,7 +173,8 @@ export default function PolygonPanel({
             border: `1px solid ${p.route_impact === "no_alternative" ? "rgba(229,72,77,0.35)" : "rgba(245,165,36,0.35)"}`,
             borderRadius: "var(--radius-sm)",
             fontSize: "var(--font-size-xs)",
-            color: p.route_impact === "no_alternative" ? "var(--color-severity-high)" : "var(--color-warning)",
+            color:
+              p.route_impact === "no_alternative" ? "var(--color-severity-high)" : "var(--color-warning)",
             fontWeight: 600,
           }}
         >

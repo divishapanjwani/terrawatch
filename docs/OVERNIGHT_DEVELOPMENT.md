@@ -489,3 +489,47 @@ Pune numbers and staying silent on the real post-fix numbers. 93/93
 backend tests pass (84 + 9 new). Verified end-to-end via the live UI
 (Playwright, place-search auto-fetch) and the Case Studies gallery, both
 with no console errors. Screenshot: `07_pune_boa_fix.png`.
+
+### Item B: draw-a-box for auto-fetch — DONE
+
+**What it does:** `frontend/src/map/BboxDrawMap.tsx` is a standalone
+MapLibre map (OSM raster basemap, no API key needed, attribution shown)
+in the "New analysis" panel, behind an "Or draw a box on the map"
+toggle. Click once for the first corner, move the mouse to preview a
+live rectangle, click again for the opposite corner — the drawn bbox
+then feeds `POST /api/analyses/fetch` exactly like a typed place name
+(mutually exclusive: drawing a box clears the place field). The backend
+already supported `bbox=west,south,east,north` since Item 1 (tested via
+curl only, back then); this wires an actual UI control to it.
+
+**A real problem found during testing, not just "it draws a rectangle":**
+the first version had no size limit. Drawing a box at low zoom (easy to
+do by accident — the map opens zoomed out to show all of India) produced
+a ~70 km × 75 km area that **never finished fetching** — still stuck at
+the `fetching` step after 5+ minutes before being killed. A box that
+size means aligning and running inference on a raster orders of
+magnitude larger than this pipeline is built for.
+
+**Fix, both ends:** `app/geo/fetch.py::_check_bbox_size` (backend) and
+a mirrored constant in `App.tsx` (frontend) reject/disable anything over
+`FETCH_MAX_BBOX_SIDE_DEG = 0.25°` (~28 km) per side — the frontend
+disables the "Fetch & analyze" button and shows the limit inline before
+the request is even sent; the backend rejects it with a clear
+`error_message` (not a silent hang) if a request somehow gets through
+anyway. Verified both: a 70×75 km box now fails in under a second with
+*"That area is too large (0.64° x 0.70°) — max 0.25° per side (~28 km).
+Draw a smaller box."*; a real drawn box after zooming in on Chhindwara,
+MP (0.16° × 0.15°, ~16×15 km) ran the full pipeline successfully end to
+end: **981 candidates → 929 kept, 52 rejected** (took a few minutes —
+expected for an area that much larger than the ~6 km demo scale, not a
+bug). A Wayanad-scale box (0.06° × 0.07°) via curl: 105 → 93 kept, 12
+rejected.
+
+6 new unit tests (`backend/tests/test_fetch.py`): bbox passthrough,
+the "need place or bbox" error, rejecting the real 70×75 km box that
+triggered this fix, accepting Wayanad-scale and exactly-at-the-limit
+boxes, rejecting a box just barely over the limit. 99/99 backend tests
+pass (93 + 6 new). Frontend: `tsc -b` + `vite build` clean; both the
+too-large warning and a successful small-box draw verified end-to-end
+via Playwright with no console errors. Screenshots:
+`08_bbox_too_large.png`, `09_bbox_drawn_small.png`.

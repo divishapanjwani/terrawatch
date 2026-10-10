@@ -203,7 +203,12 @@ def get_route_for_polygon(
     hospitals = facilities.get("hospitals", [])
     hospital = _nearest_hospital(centroid_lat, centroid_lon, hospitals)
     if hospital is None:
-        return {"status": "unknown", "route_impact": "unknown", "detour_m": None, "reason": "No hospital data for this scene."}
+        return {
+            "status": "unknown",
+            "route_impact": "unknown",
+            "detour_m": None,
+            "reason": "No hospital data for this scene.",
+        }
 
     try:
         graph = get_road_graph(bounds_4326, _cache_dir())
@@ -215,7 +220,12 @@ def get_route_for_polygon(
         orig_node = ox.distance.nearest_nodes(graph, X=centroid_lon, Y=centroid_lat)
         dest_node = ox.distance.nearest_nodes(graph, X=hospital["lon"], Y=hospital["lat"])
     except Exception:  # noqa: BLE001
-        return {"status": "unknown", "route_impact": "unknown", "detour_m": None, "reason": "Could not snap to the road graph."}
+        return {
+            "status": "unknown",
+            "route_impact": "unknown",
+            "detour_m": None,
+            "reason": "Could not snap to the road graph.",
+        }
 
     try:
         original_path = nx.shortest_path(graph, orig_node, dest_node, weight="length")

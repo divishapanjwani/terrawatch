@@ -96,7 +96,9 @@ def build_context(analysis, kept_features: list, lang: str, snapshot_path: str) 
                 "rank": int(rank) if rank is not None else "—",
                 "type": t["change_type"].get(p.get("change_type"), p.get("change_type") or "—"),
                 "area_m2": _fmt(p.get("area_m2")) or "—",
-                "people": _fmt(p.get("population_buffer_est")) if p.get("population_buffer_est") else t["no_data"],
+                "people": (
+                    _fmt(p.get("population_buffer_est")) if p.get("population_buffer_est") else t["no_data"]
+                ),
                 "hospital": (
                     f"{p['nearest_hospital_name']} ({_fmt(p['nearest_hospital_m'])} m)"
                     if p.get("nearest_hospital_name")
@@ -117,8 +119,14 @@ def build_context(analysis, kept_features: list, lang: str, snapshot_path: str) 
         "kept_count": analysis.kept_count,
         "rejected_count": analysis.rejected_count,
         "area_changed_km2": f"{area_changed_km2:.1f}",
-        "people_estimate": _fmt(analysis.total_population_buffer_est) if analysis.total_population_buffer_est else t["no_data"],
-        "near_facility_count": analysis.near_facility_count if analysis.near_facility_count is not None else "—",
+        "people_estimate": (
+            _fmt(analysis.total_population_buffer_est)
+            if analysis.total_population_buffer_est
+            else t["no_data"]
+        ),
+        "near_facility_count": (
+            analysis.near_facility_count if analysis.near_facility_count is not None else "—"
+        ),
         "snapshot_data_uri": _embed_image_data_uri(snapshot_path) if Path(snapshot_path).exists() else None,
         "rows": rows,
     }
@@ -126,8 +134,7 @@ def build_context(analysis, kept_features: list, lang: str, snapshot_path: str) 
 
 def render_html(ctx: dict) -> str:
     t = ctx["t"]
-    rows_html = "\n".join(
-        f"""
+    rows_html = "\n".join(f"""
         <tr>
           <td class="rank">#{r['rank']}</td>
           <td>{r['type']}</td>
@@ -137,9 +144,7 @@ def render_html(ctx: dict) -> str:
           <td>{r['route']}</td>
           <td class="reason">{r['reason']}</td>
           <td>{f'<a href="{r["gmaps"]}">{t["map_link_text"]}</a>' if r["gmaps"] else "—"}</td>
-        </tr>"""
-        for r in ctx["rows"]
-    )
+        </tr>""" for r in ctx["rows"])
     snapshot_html = (
         f'<img class="snapshot" src="{ctx["snapshot_data_uri"]}" alt="{t["map_snapshot_caption"]}">'
         f'<p class="caption">{t["map_snapshot_caption"]}</p>'

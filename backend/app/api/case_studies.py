@@ -33,7 +33,9 @@ async def list_case_studies():
 
 
 @router.post("/{slug}/load")
-async def load_case_study(slug: str, background_tasks: BackgroundTasks, mode: str = "disaster", engine: str = "auto"):
+async def load_case_study(
+    slug: str, background_tasks: BackgroundTasks, mode: str = "disaster", engine: str = "auto"
+):
     cs = get_case_study(slug)
     if cs is None:
         raise HTTPException(status_code=404, detail=f"Unknown case study '{slug}'")

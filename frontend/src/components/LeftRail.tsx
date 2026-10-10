@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
-import { BarChart3, GalleryHorizontal, Layers, Settings as SettingsIcon, SlidersHorizontal } from "lucide-react";
+import {
+  BarChart3,
+  GalleryHorizontal,
+  Layers,
+  Settings as SettingsIcon,
+  SlidersHorizontal,
+} from "lucide-react";
 
 export type RailPage = "analysis" | "case_studies" | "accuracy" | "settings";
 

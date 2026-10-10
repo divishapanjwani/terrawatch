@@ -42,6 +42,15 @@ FETCH_DEFAULT_BBOX_HALF_SIZE_DEG = 0.03  # ~6-7 km square, matches the Wayanad d
 FETCH_DEFAULT_MAX_CLOUD = 20.0
 NOMINATIM_MIN_INTERVAL_S = 1.0  # Nominatim usage policy: max 1 request/second
 
+# A user-drawn bbox (frontend/src/map/BboxDrawMap.tsx) has no inherent
+# size limit the way the demo's fixed-size scenes do -- a box spanning a
+# whole state would mean fetching/aligning/running inference on a raster
+# orders of magnitude larger than this pipeline is built for (minutes to
+# tens of minutes, found by testing a ~70x75 km drawn box that never
+# finished fetching). Reject anything larger than this before it starts,
+# with a clear error, rather than let it hang.
+FETCH_MAX_BBOX_SIDE_DEG = 0.25  # ~25-28 km at India's latitudes
+
 # ---------------------------------------------------------------------------
 # Quality check (app/geo/quality.py)
 # ---------------------------------------------------------------------------

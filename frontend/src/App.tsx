@@ -34,6 +34,10 @@ import {
 } from "./api/client";
 import type { AnalysisStatus, EngineChoice, FacilitiesData } from "./api/client";
 import type { RouteDisplay } from "./map/CompareMap";
+import BboxDrawMap from "./map/BboxDrawMap";
+import type { Bbox } from "./map/BboxDrawMap";
+
+const FETCH_MAX_BBOX_SIDE_DEG = 0.25; // mirrors backend/app/config.py's FETCH_MAX_BBOX_SIDE_DEG
 
 type AppState =
   | { phase: "empty" }
@@ -76,6 +80,8 @@ export default function App() {
   const [fetchAfterRange, setFetchAfterRange] = useState("2024-07-01/2024-12-31");
   const [fetchMaxCloud, setFetchMaxCloud] = useState(20);
   const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetchBbox, setFetchBbox] = useState<Bbox | null>(null);
+  const [showBboxDraw, setShowBboxDraw] = useState(false);
   const [caseStudyLoadingSlug, setCaseStudyLoadingSlug] = useState<string | null>(null);
   const [routeDisplay, setRouteDisplay] = useState<RouteDisplay | null>(null);
 
@@ -170,12 +176,18 @@ export default function App() {
   }
 
   async function handleFetchSubmit() {
-    if (!fetchPlace.trim()) return;
+    if (!fetchBbox && !fetchPlace.trim()) return;
+    if (
+      fetchBbox &&
+      (fetchBbox[2] - fetchBbox[0] > FETCH_MAX_BBOX_SIDE_DEG ||
+        fetchBbox[3] - fetchBbox[1] > FETCH_MAX_BBOX_SIDE_DEG)
+    )
+      return;
     setFetchLoading(true);
     try {
       await trackAnalysis(() =>
         fetchAnalysis({
-          place: fetchPlace.trim(),
+          ...(fetchBbox ? { bbox: fetchBbox } : { place: fetchPlace.trim() }),
           beforeDateRange: fetchBeforeRange,
           afterDateRange: fetchAfterRange,
           maxCloud: fetchMaxCloud,
@@ -245,6 +257,10 @@ export default function App() {
   }
 
   const ready = state.phase === "ready" ? state : null;
+  const bboxTooLarge = fetchBbox
+    ? fetchBbox[2] - fetchBbox[0] > FETCH_MAX_BBOX_SIDE_DEG ||
+      fetchBbox[3] - fetchBbox[1] > FETCH_MAX_BBOX_SIDE_DEG
+    : false;
 
   useEffect(() => {
     const routeImpact = selected?.properties?.route_impact as string | undefined;
@@ -417,8 +433,69 @@ export default function App() {
                     style={{ width: "100%", marginBottom: "6px" }}
                     placeholder="Place name, e.g. Wayanad, Kerala"
                     value={fetchPlace}
+                    disabled={Boolean(fetchBbox)}
                     onChange={(e) => setFetchPlace(e.target.value)}
                   />
+                  <button
+                    className="ts-btn-ghost"
+                    style={{
+                      width: "100%",
+                      fontSize: "11px",
+                      padding: "4px 0",
+                      marginBottom: "8px",
+                      textAlign: "left",
+                      color: "var(--color-accent)",
+                    }}
+                    onClick={() => setShowBboxDraw((s) => !s)}
+                  >
+                    {showBboxDraw ? "Hide map" : "Or draw a box on the map"}
+                  </button>
+                  {showBboxDraw && (
+                    <div style={{ marginBottom: "8px" }}>
+                      <BboxDrawMap
+                        onBboxChange={(bbox) => {
+                          setFetchBbox(bbox);
+                          if (bbox) setFetchPlace("");
+                        }}
+                      />
+                      {fetchBbox && (
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginTop: "6px",
+                          }}
+                        >
+                          <span
+                            className="mono"
+                            style={{ fontSize: "10px", color: "var(--color-text-faint)" }}
+                          >
+                            {fetchBbox.map((v) => v.toFixed(3)).join(", ")}
+                          </span>
+                          <button
+                            className="ts-btn-ghost"
+                            style={{ fontSize: "11px", padding: "2px 6px" }}
+                            onClick={() => setFetchBbox(null)}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+                      {bboxTooLarge && (
+                        <p
+                          style={{
+                            fontSize: "11px",
+                            color: "var(--color-danger)",
+                            marginTop: "4px",
+                          }}
+                        >
+                          That box is too large (max {FETCH_MAX_BBOX_SIDE_DEG}° per side, ~
+                          {Math.round(FETCH_MAX_BBOX_SIDE_DEG * 111)} km) — draw a smaller area.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: "6px", marginBottom: "6px" }}>
                     <input
                       className="ts-input"
@@ -453,7 +530,8 @@ export default function App() {
                     className="ts-btn"
                     style={{ width: "100%" }}
                     disabled={
-                      !fetchPlace.trim() ||
+                      (!fetchBbox && !fetchPlace.trim()) ||
+                      bboxTooLarge ||
                       fetchLoading ||
                       state.phase === "uploading" ||
                       state.phase === "processing"

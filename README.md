@@ -311,13 +311,15 @@ each shipped only once tested and merged to `main`.
 - **Engine 2's precision ceiling (~20% on OSCD)** is the model's honest
   limit at ~2M parameters / 14 training scenes — see `docs/MODEL_CARD.md`.
 - **LLM summaries/"ask the map" and alerts** from the original project
-  brief are not built — auto-fetch (place search + Case Studies gallery),
-  the blocked-route checker, and PDF/HTML field reports (EN/Hindi/Marathi)
-  *are* built; see `docs/OVERNIGHT_DEVELOPMENT.md` for what shipped after
-  Round 2 and real numbers for each.
-- **Draw-a-box for auto-fetch is not built** — the backend accepts a
-  bbox directly (`POST /api/analyses/fetch` with `bbox=west,south,east,north`,
-  tested via curl), but the frontend only exposes place-name search.
+  brief are not built — auto-fetch (place search, draw-a-box, and Case
+  Studies gallery), the blocked-route checker, and PDF/HTML field reports
+  (EN/Hindi/Marathi) *are* built; see `docs/OVERNIGHT_DEVELOPMENT.md` for
+  what shipped after Round 2 and real numbers for each.
+- **A drawn auto-fetch box is capped at 0.25° (~28 km) per side** — found
+  by testing: an uncapped box at low zoom took 5+ minutes without
+  finishing (aligning/inference on a raster far larger than this
+  pipeline is built for). The frontend disables "Fetch & analyze" above
+  the cap and the backend rejects it with a clear message either way.
 - **Radar mode (Sentinel-1) and terrain-aware filtering (Copernicus DEM)**
   were scoped for this round but deliberately not attempted — listed here
   as roadmap, not as "attempted and failed."
@@ -329,12 +331,12 @@ each shipped only once tested and merged to `main`.
 - The Hindi/Marathi field-report templates (`backend/app/reports/i18n.py`)
   are AI-drafted and have not yet been reviewed by a native speaker.
 
-Roadmap: draw-a-box for auto-fetch, all-weather radar mode (Sentinel-1
-VV/VH log-ratio change detection + a flood-water rule, reusing the
-existing vectorize/filter/priority pipeline), terrain-aware filtering
-(Copernicus DEM GLO-30 slope/hillshade per polygon), AI situation
-summaries and "ask the map" natural-language filtering, field feedback
-(confirmed/false-alarm buttons feeding back into thresholds), and
+Roadmap: all-weather radar mode (Sentinel-1 VV/VH log-ratio change
+detection + a flood-water rule, reusing the existing vectorize/filter/
+priority pipeline), terrain-aware filtering (Copernicus DEM GLO-30
+slope/hillshade per polygon), AI situation summaries and "ask the map"
+natural-language filtering, field feedback (confirmed/false-alarm
+buttons feeding back into thresholds), and
 Telegram alerts.
 
 ## Repository structure
